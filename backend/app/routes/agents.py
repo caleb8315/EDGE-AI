@@ -5,6 +5,7 @@ from app.services.openai_service import openai_service
 from typing import List, Dict, Any
 import logging
 from datetime import datetime
+import re, uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -99,6 +100,21 @@ async def chat_with_agent(chat_message: ChatMessage):
             "timestamp": datetime.now().isoformat()
         }
         conversation_history.append(ai_message_entry)
+        
+        # Auto-create tasks if AI marks them using [[task:ROLE]] syntax
+        try:
+            task_matches = re.findall(r"\[\[task:(CEO|CTO|CMO)\]\](.+)", ai_response["message"], re.IGNORECASE)
+            for role, desc in task_matches:
+                task_data = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": str(chat_message.user_id),
+                    "assigned_to_role": role.upper(),
+                    "description": desc.strip(),
+                    "status": "pending"
+                }
+                await supabase_service.create_task(task_data)
+        except Exception as e:
+            logger.warning(f"Failed to parse or create tasks from AI response: {e}")
         
         # Update agent conversation state with enhanced tracking
         updated_conversation_state = {
@@ -235,6 +251,13 @@ async def get_proactive_suggestions(user_id: str):
             ai_agents_status=ai_agents_status
         )
         
+        # Attach the originating AI role to each suggestion for richer UI context
+        ai_roles = [agent["role"] for agent in agents if agent["role"] != user["role"]]
+        for idx, suggestion in enumerate(suggestions):
+            # Cycle through available AI roles so we always have a from_agent label
+            if isinstance(suggestion, dict):
+                suggestion["from_agent"] = ai_roles[idx % len(ai_roles)] if ai_roles else None
+
         return {
             "user_id": user_id,
             "generated_at": "now",

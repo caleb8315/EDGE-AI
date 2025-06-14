@@ -11,13 +11,14 @@ router = APIRouter()
 async def create_task(task_data: TaskCreate):
     """Create a new task"""
     try:
-        # Validate user exists
-        user = await supabase_service.get_user_by_id(str(task_data.user_id))
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+        # Validate user exists, unless we are running in mock mode without Supabase
+        if supabase_service.client:
+            user = await supabase_service.get_user_by_id(str(task_data.user_id))
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
         
         task_dict = task_data.model_dump()
         created_task = await supabase_service.create_task(task_dict)

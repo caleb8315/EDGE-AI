@@ -39,6 +39,11 @@ export const agentApi = {
     const response = await api.post('/api/agents/chat', chatRequest)
     return response.data
   },
+
+  getProactiveSuggestions: async (userId: string) => {
+    const response = await api.get(`/api/agents/user/${userId}/suggestions`)
+    return response.data
+  },
 }
 
 // Task API

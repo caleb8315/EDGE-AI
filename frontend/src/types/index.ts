@@ -48,4 +48,12 @@ export interface ChatResponse {
   agent_role: RoleType
   message: string
   conversation_state?: any
+}
+
+export interface Suggestion {
+  type: string
+  message: string
+  action: string
+  priority: 'high' | 'medium' | 'low'
+  from_agent?: RoleType | null
 } 

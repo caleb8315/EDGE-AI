@@ -7,6 +7,7 @@ import { taskApi } from '@/lib/api'
 import { Task, User, RoleType } from '@/types'
 import { getRoleColor, formatDate } from '@/lib/utils'
 import { CheckCircle, Circle, Clock, Plus } from 'lucide-react'
+import AddTaskModal from './AddTaskModal'
 
 interface TaskListProps {
   user: User
@@ -16,9 +17,17 @@ export default function TaskList({ user }: TaskListProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
+  const [showAdd, setShowAdd] = useState(false)
 
   useEffect(() => {
     loadTasks()
+    const handler = (e: any) => {
+      if (e.detail) {
+        setTasks(prev => [e.detail, ...prev])
+      }
+    }
+    window.addEventListener('task_created', handler)
+    return () => window.removeEventListener('task_created', handler)
   }, [user.id])
 
   const loadTasks = async () => {
@@ -30,6 +39,10 @@ export default function TaskList({ user }: TaskListProps) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleTaskCreated = (task: Task) => {
+    setTasks(prev => [task, ...prev])
   }
 
   const updateTaskStatus = async (taskId: string, status: Task['status']) => {
@@ -88,92 +101,102 @@ export default function TaskList({ user }: TaskListProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Tasks</CardTitle>
-          <Button size="sm" variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
-          </Button>
-        </div>
-        
-        {/* Filter Buttons */}
-        <div className="flex gap-2 mt-4">
-          {(['all', 'pending', 'in_progress', 'completed'] as const).map((status) => (
-            <Button
-              key={status}
-              variant={filter === status ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(status)}
-            >
-              {status === 'all' ? 'All' : status.replace('_', ' ')}
-              <span className="ml-1 text-xs">
-                ({status === 'all' ? tasks.length : tasks.filter(t => t.status === status).length})
-              </span>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Tasks</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Task
             </Button>
-          ))}
-        </div>
-      </CardHeader>
-      
-      <CardContent>
-        {filteredTasks.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Circle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p>No tasks found</p>
-            <p className="text-sm mt-2">
-              {filter === 'all' 
-                ? 'Your AI agents will create tasks to help you build your startup'
-                : `No ${filter.replace('_', ' ')} tasks`
-              }
-            </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <div
-                key={task.id}
-                className="p-4 border rounded-lg hover:shadow-sm transition-shadow"
+          
+          {/* Filter Buttons */}
+          <div className="flex gap-2 mt-4">
+            {(['all', 'pending', 'in_progress', 'completed'] as const).map((status) => (
+              <Button
+                key={status}
+                variant={filter === status ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter(status)}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1">
-                    <button
-                      onClick={() => {
-                        const nextStatus = task.status === 'pending' 
-                          ? 'in_progress' 
-                          : task.status === 'in_progress' 
-                          ? 'completed' 
-                          : 'pending'
-                        updateTaskStatus(task.id, nextStatus)
-                      }}
-                      className="mt-1"
-                    >
-                      {getStatusIcon(task.status)}
-                    </button>
-                    
-                    <div className="flex-1">
-                      <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>
-                        {task.description}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleColor(task.assigned_to_role)}`}>
-                          {task.assigned_to_role}
-                        </span>
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(task.status)}`}>
-                          {task.status.replace('_', ' ')}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(task.created_at)}
-                        </span>
+                {status === 'all' ? 'All' : status.replace('_', ' ')}
+                <span className="ml-1 text-xs">
+                  ({status === 'all' ? tasks.length : tasks.filter(t => t.status === status).length})
+                </span>
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+          {filteredTasks.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Circle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p>No tasks found</p>
+              <p className="text-sm mt-2">
+                {filter === 'all' 
+                  ? 'Your AI agents will create tasks to help you build your startup'
+                  : `No ${filter.replace('_', ' ')} tasks`
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="p-4 border rounded-lg hover:shadow-sm transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <button
+                        onClick={() => {
+                          const nextStatus = task.status === 'pending' 
+                            ? 'in_progress' 
+                            : task.status === 'in_progress' 
+                            ? 'completed' 
+                            : 'pending'
+                          updateTaskStatus(task.id, nextStatus)
+                        }}
+                        className="mt-1"
+                      >
+                        {getStatusIcon(task.status)}
+                      </button>
+                      
+                      <div className="flex-1">
+                        <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>
+                          {task.description}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleColor(task.assigned_to_role)}`}>
+                            {task.assigned_to_role}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(task.status)}`}>
+                            {task.status.replace('_', ' ')}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatDate(task.created_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      {showAdd && (
+        <AddTaskModal
+          open={showAdd}
+          onClose={() => setShowAdd(false)}
+          user={user}
+          onTaskCreated={handleTaskCreated}
+        />
+      )}
+    </>
   )
 } 

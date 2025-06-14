@@ -5,18 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { User, RoleType } from '@/types'
+import type { Suggestion } from '@/types'
 import { Lightbulb, TrendingUp, Users, Target, AlertCircle, CheckCircle } from 'lucide-react'
+import { agentApi } from '@/lib/api'
+import { taskApi } from '@/lib/api'
 
 interface ProactiveSuggestionsProps {
   user: User
-}
-
-interface Suggestion {
-  type: string
-  message: string
-  action: string
-  priority: 'high' | 'medium' | 'low'
-  from_agent?: RoleType
 }
 
 const suggestionIcons = {
@@ -45,36 +40,18 @@ export default function ProactiveSuggestions({ user }: ProactiveSuggestionsProps
   const fetchSuggestions = async () => {
     try {
       setLoading(true)
-      // Mock suggestions for now - in real implementation, call the API
-      const mockSuggestions: Suggestion[] = [
-        {
-          type: 'collaboration',
-          message: `Your AI CTO has been analyzing technical requirements. Consider discussing the MVP timeline and resource allocation.`,
-          action: 'schedule_technical_sync',
-          priority: 'high',
-          from_agent: 'CTO'
-        },
-        {
-          type: 'growth',
-          message: `Your AI CMO suggests conducting customer interviews to validate your target market assumptions.`,
-          action: 'start_customer_research',
-          priority: 'high',
-          from_agent: 'CMO'
-        },
-        {
-          type: 'strategy',
-          message: `Based on recent discussions, consider defining clear OKRs for the next quarter to align team efforts.`,
-          action: 'create_okrs',
-          priority: 'medium',
-          from_agent: 'CEO'
-        }
-      ]
-      
-      // Filter suggestions based on user's role (don't show suggestions from their own role)
-      const filteredSuggestions = mockSuggestions.filter(s => s.from_agent !== user.role)
-      setSuggestions(filteredSuggestions)
+      const response = await agentApi.getProactiveSuggestions(user.id)
+
+      if (response && Array.isArray(response.suggestions)) {
+        // Filter out suggestions that originate from the user's own role
+        const filtered = response.suggestions.filter((s: Suggestion) => s.from_agent !== user.role)
+        setSuggestions(filtered)
+      } else {
+        setSuggestions([])
+      }
     } catch (error) {
       console.error('Failed to fetch suggestions:', error)
+      setSuggestions([])
     } finally {
       setLoading(false)
     }
@@ -82,6 +59,22 @@ export default function ProactiveSuggestions({ user }: ProactiveSuggestionsProps
 
   const dismissSuggestion = (index: number) => {
     setDismissedSuggestions(prev => new Set(prev).add(index))
+  }
+
+  const handleTakeAction = async (suggestion: Suggestion, index: number) => {
+    try {
+      // Create a task based on the suggestion
+      const newTask = await taskApi.create({
+        user_id: user.id,
+        assigned_to_role: suggestion.from_agent || user.role,
+        description: suggestion.message,
+        status: 'pending',
+      } as any)
+      window.dispatchEvent(new CustomEvent('task_created', { detail: newTask }))
+      dismissSuggestion(index)
+    } catch (e) {
+      console.error('Failed to create task from suggestion:', e)
+    }
   }
 
   const activeSuggestions = suggestions.filter((_, index) => !dismissedSuggestions.has(index))
@@ -162,7 +155,7 @@ export default function ProactiveSuggestions({ user }: ProactiveSuggestionsProps
                       {suggestion.message}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline">
+                      <Button size="sm" variant="outline" onClick={() => handleTakeAction(suggestion, index)}>
                         Take Action
                       </Button>
                       <Button 
