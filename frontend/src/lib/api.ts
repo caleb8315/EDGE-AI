@@ -36,7 +36,7 @@ export const agentApi = {
   },
 
   chat: async (chatRequest: ChatRequest): Promise<ChatResponse> => {
-    const response = await api.post('/api/agents/chat', chatRequest)
+    const response = await api.post('/api/agents/chat-tools', chatRequest)
     return response.data
   },
 
@@ -74,6 +74,19 @@ export const taskApi = {
 export const healthApi = {
   check: async () => {
     const response = await api.get('/health')
+    return response.data
+  },
+}
+
+// Files API
+export const filesApi = {
+  list: async (): Promise<string[]> => {
+    const response = await api.get('/api/files/list')
+    return response.data
+  },
+
+  read: async (path: string): Promise<string> => {
+    const response = await api.get('/api/files/raw', { params: { path } })
     return response.data
   },
 } 

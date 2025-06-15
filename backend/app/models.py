@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
@@ -65,6 +65,8 @@ class Task(TaskBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    status: str
+    resources: List[str] | None = []
 
     class Config:
         from_attributes = True

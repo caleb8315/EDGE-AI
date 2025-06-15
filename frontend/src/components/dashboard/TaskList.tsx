@@ -102,7 +102,7 @@ export default function TaskList({ user }: TaskListProps) {
 
   return (
     <>
-      <Card>
+      <Card className="max-h-[22rem] flex flex-col">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Tasks</CardTitle>
@@ -130,7 +130,7 @@ export default function TaskList({ user }: TaskListProps) {
           </div>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           {filteredTasks.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Circle className="w-12 h-12 mx-auto mb-4 text-gray-400" />

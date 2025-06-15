@@ -99,7 +99,7 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
     setIsLoading(true)
 
     try {
-      const response = await agentApi.chat({
+      const response: ChatResponse = await agentApi.chat({
         user_id: user.id,
         role: selectedAgent,
         message: newMessage,

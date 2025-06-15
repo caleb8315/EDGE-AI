@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ChatInterface from '@/components/dashboard/ChatInterface'
 import TaskList from '@/components/dashboard/TaskList'
+import ResourcesPanel from '@/components/dashboard/ResourcesPanel'
+import CompletedTasks from '@/components/dashboard/CompletedTasks'
 import ProactiveSuggestions from '@/components/dashboard/ProactiveSuggestions'
 import { User, RoleType } from '@/types'
 import { getRoleColor, getRoleDescription } from '@/lib/utils'
@@ -31,7 +33,7 @@ export default function DashboardPage() {
       setUser(parsedUser)
       
       // Set default selected agent to the first AI role (not the user's role)
-      const aiRoles: RoleType[] = ['CEO', 'CTO', 'CMO'].filter(role => role !== parsedUser.role)
+      const aiRoles = (['CEO', 'CTO', 'CMO'].filter(role => role !== parsedUser.role) as RoleType[])
       if (aiRoles.length > 0) {
         setSelectedAgent(aiRoles[0])
       }
@@ -57,7 +59,7 @@ export default function DashboardPage() {
     )
   }
 
-  const aiRoles: RoleType[] = ['CEO', 'CTO', 'CMO'].filter(role => role !== user.role)
+  const aiRoles = (['CEO', 'CTO', 'CMO'].filter(role => role !== user.role) as RoleType[])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -194,9 +196,11 @@ export default function DashboardPage() {
             <ChatInterface user={user} selectedAgent={selectedAgent} key={selectedAgent} />
           </div>
 
-          {/* Right Column: Tasks */}
-          <div>
+          {/* Right Column: Tasks & Resources */}
+          <div className="space-y-6">
             <TaskList user={user} />
+            <CompletedTasks userId={user.id} />
+            <ResourcesPanel />
           </div>
         </div>
 

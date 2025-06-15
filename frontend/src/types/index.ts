@@ -27,6 +27,7 @@ export interface Task {
   assigned_to_role: RoleType
   description: string
   status: 'pending' | 'in_progress' | 'completed'
+  resources?: string[]
   created_at: string
   updated_at: string
 }

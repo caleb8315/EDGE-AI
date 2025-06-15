@@ -120,3 +120,18 @@ async def get_tasks_by_role(role: str, user_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get tasks by role"
         ) 
+
+@router.post("/{task_id}/resources")
+async def add_task_resource(task_id: str, path: str):
+    """Attach a resource file path to an existing task."""
+    try:
+        task = await supabase_service.update_task(task_id, {})
+        if not task:
+            raise HTTPException(404, "Task not found")
+        resources = task.get("resources", []) or []
+        if path not in resources:
+            resources.append(path)
+            await supabase_service.update_task(task_id, {"resources": resources})
+        return {"id": task_id, "resources": resources}
+    except Exception as e:
+        raise HTTPException(500, str(e)) 

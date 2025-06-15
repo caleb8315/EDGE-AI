@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 import logging
 from datetime import datetime
 import re, uuid
+from app.agents.executor import get_tool_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -276,3 +277,20 @@ async def get_proactive_suggestions(user_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get proactive suggestions"
         ) 
+
+@router.post("/chat-tools", response_model=ChatResponse)
+async def chat_with_agent_tools(chat_message: ChatMessage):
+    """Chat with agent using OpenAI function calling and EDGE tools"""
+    try:
+        agent = get_tool_agent()
+        response_text = await agent.chat(chat_message.message, str(chat_message.user_id))
+
+        # Return simple response; conversation_state is placeholder
+        return ChatResponse(
+            agent_role=chat_message.role,
+            message=response_text,
+            conversation_state={},
+        )
+    except Exception as e:
+        logger.error(f"Error in chat_with_agent_tools: {e}")
+        raise HTTPException(status_code=500, detail="Tool chat failed") 
