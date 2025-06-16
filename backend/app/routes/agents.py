@@ -4,12 +4,21 @@ from app.services.supabase_service import supabase_service
 from app.services.openai_service import openai_service
 from typing import List, Dict, Any
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import re, uuid
 from app.agents.executor import get_tool_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# In-memory cache to avoid hitting OpenAI on every page refresh
+#  Keyed by user_id and stores {"timestamp": datetime, "payload": dict}
+#  NOTE: This is a simple optimisation that works for a single-process server.
+#  If you run multiple workers or deploy server-less, consider a shared cache
+#  such as Redis or Supabase instead.
+_SUGGESTIONS_CACHE: dict[str, Dict[str, Any]] = {}
+_SUGGESTIONS_TTL = timedelta(minutes=5)
 
 @router.get("/user/{user_id}", response_model=List[Agent])
 async def get_user_agents(user_id: str):
@@ -76,6 +85,52 @@ async def chat_with_agent(chat_message: ChatMessage):
         }
         conversation_history.append(user_message_entry)
         
+        # ------------------------------------------------------------------
+        # Heuristic task extraction: parse the latest user message and create
+        # tasks for any actionable phrases. This guarantees that tasks are
+        # logged even when the LLM doesn't explicitly flag them.
+        # ------------------------------------------------------------------
+        tasks_created: list[str] = []
+        try:
+            import re as _re, uuid as _uuid
+
+            def _infer_role(_desc: str) -> str:
+                _d = _desc.lower()
+                if any(k in _d for k in ["ui", "interface", "frontend", "design"]):
+                    return "CTO"
+                if any(k in _d for k in ["marketing", "feedback", "survey", "campaign"]):
+                    return "CMO"
+                return "CEO"
+
+            raw_msg = chat_message.message
+            parts = _re.split(r"\band\b|[\n\u2022]", raw_msg)
+            for part in parts:
+                part = part.strip(" .")
+                if not part:
+                    continue
+                desc: str | None = None
+                # Look for modal phrases (need to / should / must / have to / please)
+                if _re.search(r"\b(need to|should|must|have to|please)\b", part, _re.I):
+                    desc = _re.sub(r"^(I|we)?\s*(need to|should|must|have to|please)\s*", "", part, flags=_re.I).strip()
+                # Or imperative verb at the start (update, gather, etc.)
+                elif _re.match(r"^(?:also\s+|then\s+)?(update|gather|create|build|write|design|implement|fix)\b", part, _re.I):
+                    desc = part
+                if desc:
+                    task_payload = {
+                        "id": str(_uuid.uuid4()),
+                        "user_id": str(chat_message.user_id),
+                        "assigned_to_role": _infer_role(desc),
+                        "description": desc.capitalize(),
+                        "status": "pending",
+                    }
+                    await supabase_service.create_task(task_payload)
+                    tasks_created.append(desc.capitalize())
+        except Exception as _heur_err:
+            logger.warning(f"Heuristic task extraction failed: {_heur_err}")
+        
+        # ------------------------------------------------------------------
+        # Heuristic task extraction: always create tasks when user message
+        # clearly expresses an action, even if not tagged. Mirrors logic used
         # Enhanced user context
         enhanced_user_context = {
             "user_role": user["role"], 
@@ -133,9 +188,15 @@ async def chat_with_agent(chat_message: ChatMessage):
             updated_conversation_state
         )
         
+        # If we auto-created tasks, append a confirmation note to the assistant message
+        final_message = ai_response["message"]
+        if tasks_created:
+            bullets = "\n".join(f"• {t}" for t in tasks_created)
+            final_message += f"\n\nI've added the following tasks:\n{bullets}"
+
         return ChatResponse(
             agent_role=chat_message.role,
-            message=ai_response["message"],
+            message=final_message,
             conversation_state=updated_conversation_state
         )
         
@@ -245,11 +306,18 @@ async def get_proactive_suggestions(user_id: str):
                 "status": "active" if conv_state.get("message_count", 0) > 0 else "underutilized"
             }
         
-        # Get proactive suggestions from AI
+        # -------------------------------------------------------------------
+        # Try to serve cached suggestions if they are still fresh
+        cached = _SUGGESTIONS_CACHE.get(user_id)
+        now = datetime.utcnow()
+        if cached and now - cached["timestamp"] < _SUGGESTIONS_TTL:
+            return cached["payload"]
+
+        # Generate fresh proactive suggestions via OpenAI
         suggestions = await openai_service.get_proactive_suggestions(
             user_role=RoleEnum(user["role"]),
             recent_activity=recent_activity,
-            ai_agents_status=ai_agents_status
+            ai_agents_status=ai_agents_status,
         )
         
         # Attach the originating AI role to each suggestion for richer UI context
@@ -259,7 +327,7 @@ async def get_proactive_suggestions(user_id: str):
             if isinstance(suggestion, dict):
                 suggestion["from_agent"] = ai_roles[idx % len(ai_roles)] if ai_roles else None
 
-        return {
+        response_payload = {
             "user_id": user_id,
             "generated_at": "now",
             "suggestions": suggestions,
@@ -268,6 +336,11 @@ async def get_proactive_suggestions(user_id: str):
                 "ai_agents_status": ai_agents_status
             }
         }
+
+        # Store in cache
+        _SUGGESTIONS_CACHE[user_id] = {"timestamp": now, "payload": response_payload}
+
+        return response_payload
         
     except HTTPException:
         raise

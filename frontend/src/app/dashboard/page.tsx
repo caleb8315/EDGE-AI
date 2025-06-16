@@ -10,6 +10,7 @@ import TaskList from '@/components/dashboard/TaskList'
 import ResourcesPanel from '@/components/dashboard/ResourcesPanel'
 import CompletedTasks from '@/components/dashboard/CompletedTasks'
 import ProactiveSuggestions from '@/components/dashboard/ProactiveSuggestions'
+import CodebasePanel from '@/components/dashboard/CodebasePanel'
 import { User, RoleType } from '@/types'
 import { getRoleColor, getRoleDescription } from '@/lib/utils'
 import { LogOut, Settings, User as UserIcon, Brain, Target, Zap, Sparkles } from 'lucide-react'
@@ -205,6 +206,7 @@ export default function DashboardPage() {
             <TaskList user={user} />
             <CompletedTasks userId={user.id} />
             <ResourcesPanel />
+            <CodebasePanel userId={user.id} />
           </div>
         </div>
 

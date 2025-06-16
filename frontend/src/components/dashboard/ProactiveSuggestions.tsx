@@ -34,7 +34,26 @@ export default function ProactiveSuggestions({ user }: ProactiveSuggestionsProps
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set())
 
   useEffect(() => {
-    fetchSuggestions()
+    const cacheKey = `suggestions_${user.id}`
+    const cached = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        const cacheAge = Date.now() - parsed.timestamp
+        const maxAge = 5 * 60 * 1000 // 5 minutes
+        if (cacheAge < maxAge && Array.isArray(parsed.data)) {
+          setSuggestions(parsed.data)
+          setLoading(false)
+        } else {
+          localStorage.removeItem(cacheKey)
+          fetchSuggestions()
+        }
+      } catch {
+        fetchSuggestions()
+      }
+    } else {
+      fetchSuggestions()
+    }
   }, [user.id])
 
   const fetchSuggestions = async () => {
@@ -46,6 +65,15 @@ export default function ProactiveSuggestions({ user }: ProactiveSuggestionsProps
         // Filter out suggestions that originate from the user's own role
         const filtered = response.suggestions.filter((s: Suggestion) => s.from_agent !== user.role)
         setSuggestions(filtered)
+        // Cache suggestions for 5 min
+        const cacheKey = `suggestions_${user.id}`
+        const payload = {
+          timestamp: Date.now(),
+          data: filtered,
+        }
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(payload))
+        } catch {}
       } else {
         setSuggestions([])
       }

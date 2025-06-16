@@ -33,14 +33,27 @@ class ToolAgent:
     async def chat(self, user_message: str, user_id: str | None = None) -> str:
         """Process *user_message* and return the assistant's answer."""
         system_content = (
-            "You are EDGE, an autonomous startup co-founder.  You have function-tools that can:\n"
-            "• write files to the workspace (file_manager).\n"
-            "• create tasks and attach resources (create_task or tasks/{id}/resources).\n"
-            "• scrape, search, summarize, send email, etc.\n\n"
+            "You are EDGE, an autonomous startup co-founder AI with access to the user's uploaded codebase and documents. You have function-tools that can:\n"
+            "• Explore the codebase (codebase_explorer): list files, analyze structure, search content, get project summaries\n"
+            "• Read/write files in the workspace (file_manager)\n"
+            "• Create tasks and attach resources (create_task)\n"
+            "• Read PDFs and documents (read_pdf)\n"
+            "• Search, scrape, summarize, send email, etc.\n\n"
+            "CODEBASE ACCESS:\n"
+            "- Use codebase_explorer to understand uploaded files before providing advice\n"
+            "- Check what files are available with action='list' or action='summary'\n"
+            "- Search for specific patterns/functions with action='search'\n"
+            "- Read specific files with file_manager mode='read'\n\n"
+            "ROLE-SPECIFIC GUIDANCE:\n"
+            "• CTO: Focus on code architecture, technical debt, performance, security, and development practices\n"
+            "• CMO: Analyze marketing materials, documentation, user-facing content, and growth strategies\n"
+            "• CEO: Review business documents, strategic plans, and provide high-level guidance\n\n"
             "GPT Guidelines:\n"
             "1. When the user requests a deliverable (plan, code, pdf, diagram, etc.) **always** use file_manager.write to save it under an appropriate path (no leading /).\n"
             "2. After saving, call create_task with user_id='{uid}', assigned_to_role set appropriately, status='completed', and resources=[PATH].\n"
             "3. In your final assistant reply, just reference the relative file path—do NOT output the full deliverable inline.\n"
+            "4. Whenever the conversation identifies a follow-up, action item, or anything that needs to get done—**even if the user does NOT explicitly ask to 'add task'**—call create_task with a clear description, the appropriate assigned_to_role, and status='pending'.\n"
+            "5. **ALWAYS** start by exploring the codebase if the user asks about code, architecture, or technical topics.\n"
         )
         system_content = system_content.replace("{uid}", user_id or "demo-user")
 
@@ -51,6 +64,65 @@ class ToolAgent:
             },
             {"role": "user", "content": user_message},
         ]
+
+        # ------------------------------------------------------------------
+        # 0. Heuristic: extract obvious action items directly from the user
+        #    message so we can *guarantee* task creation even if the model
+        #    fails to call `create_task`.  This is intentionally simple and
+        #    should be refined over time.
+        # ------------------------------------------------------------------
+        async def _auto_create_tasks(raw: str) -> list[str]:
+            """Detect phrases like 'need to <verb>' or 'update the X' and
+            create pending tasks.  Returns human-readable summaries of any
+            tasks we created so we can mention them in the assistant reply."""
+
+            import re
+
+            # Very naive extraction: split on ' and ', bullet markers, or new-lines
+            candidates: list[str] = []
+            for part in re.split(r"\band\b|[\n\u2022]", raw):
+                part = part.strip(" .")
+                if not part:
+                    continue
+                # Look for trigger phrases
+                if re.search(r"\b(need to|should|must|have to|please)\b", part, re.I):
+                    # remove leading trigger words for description
+                    desc = re.sub(r"^(I|we)?\s*(need to|should|must|have to|please)\s*", "", part, flags=re.I).strip()
+                    if desc:
+                        candidates.append(desc[0].upper() + desc[1:])
+                # Or imperative verb at start (update, gather, create, etc.)
+                elif re.match(r"^(?:also\s+|then\s+)?(update|gather|create|build|write|design|implement|fix)\b", part, re.I):
+                    candidates.append(part[0].upper() + part[1:])
+
+            summaries: list[str] = []
+            create_tool = self._tool_map.get("create_task")
+            if not create_tool or not candidates:
+                return summaries  # nothing to do
+
+            # crude role inference helper
+            def infer_role(desc: str) -> str:
+                _d = desc.lower()
+                if any(k in _d for k in ["ui", "interface", "frontend", "design"]):
+                    return "CTO"
+                if any(k in _d for k in ["marketing", "feedback", "survey", "campaign"]):
+                    return "CMO"
+                return "CEO"
+
+            for desc in candidates:
+                try:
+                    await create_tool.run(
+                        user_id=user_id,
+                        assigned_to_role=infer_role(desc),
+                        description=desc,
+                        status="pending",
+                    )
+                    summaries.append(desc)
+                except Exception:
+                    # We swallow errors to avoid blocking the main chat flow
+                    pass
+            return summaries
+
+        auto_tasks = await _auto_create_tasks(user_message)
 
         response = await self.client.chat.completions.create(
             model=self.model,
@@ -108,10 +180,18 @@ class ToolAgent:
                 model=self.model,
                 messages=messages,
             )
-            return response2.choices[0].message.content.strip()
+            final_answer = response2.choices[0].message.content.strip()
+            if auto_tasks:
+                bullets = "\n".join(f"• {t}" for t in auto_tasks)
+                final_answer += f"\n\nI've added the following tasks:\n{bullets}"
+            return final_answer
 
         # No tool call – just return content
-        return choice.message.content.strip()
+        final_answer = choice.message.content.strip()
+        if auto_tasks:
+            bullets = "\n".join(f"• {t}" for t in auto_tasks)
+            final_answer += f"\n\nI've added the following tasks:\n{bullets}"
+        return final_answer
 
 
 # Singleton instance (lazy)

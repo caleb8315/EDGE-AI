@@ -8,6 +8,7 @@ from .run_python import RunPythonTool
 from .summarize_text import SummarizeTextTool
 from .calendar_tool import CalendarTool
 from .file_manager import FileManagerTool
+from .codebase_explorer import CodebaseExplorerTool
 
 ALL_TOOLS = [
     ScrapeWebsiteTool(),
@@ -20,4 +21,5 @@ ALL_TOOLS = [
     SummarizeTextTool(),
     CalendarTool(),
     FileManagerTool(),
+    CodebaseExplorerTool(),
 ] 

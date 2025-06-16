@@ -117,23 +117,33 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
 
       setMessages(prev => [...prev, newMsg])
 
+      // Render in bigger chunks to avoid excessive re-renders that can freeze the UI
+      const CHUNK_SIZE = 4 // characters per tick
+      const INTERVAL_MS = 30 // tick interval
+
       let charIndex = 0
       typingIntervalRef.current && clearInterval(typingIntervalRef.current)
       typingIntervalRef.current = setInterval(() => {
-        charIndex++
+        charIndex = Math.min(charIndex + CHUNK_SIZE, fullText.length)
+        const textChunk = fullText.slice(0, charIndex)
+
+        // Use functional update to avoid stale closures
         setMessages(prev => {
           const updated = [...prev]
           const lastIndex = updated.length - 1
-          updated[lastIndex] = {
-            ...updated[lastIndex],
-            message: fullText.slice(0, charIndex)
+          if (updated[lastIndex]) {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              message: textChunk
+            }
           }
           return updated
         })
+
         if (charIndex >= fullText.length) {
           if (typingIntervalRef.current) clearInterval(typingIntervalRef.current)
         }
-      }, 20) // typing speed ms per char
+      }, INTERVAL_MS)
 
       // Update agent status if available
       if (response.conversation_state) {
@@ -151,6 +161,15 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
       setIsLoading(false)
     }
   }
+
+  // Cleanup typing interval on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current)
+      }
+    }
+  }, [])
 
   return (
     <Card className="h-[700px] flex flex-col">

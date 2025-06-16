@@ -94,6 +94,7 @@ class CompanyBase(BaseModel):
     product_overview: Optional[str] = None  # Short description of the main product
     tech_stack: Optional[str] = None  # Primary technologies being used or considered
     go_to_market_strategy: Optional[str] = None  # High-level GTM strategy statement
+    codebase_files: Optional[List[str]] = None  # List of uploaded codebase file paths
 
 class CompanyCreate(CompanyBase):
     pass
@@ -102,6 +103,7 @@ class Company(CompanyBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    codebase_files: List[str] | None = []
 
     class Config:
         from_attributes = True 

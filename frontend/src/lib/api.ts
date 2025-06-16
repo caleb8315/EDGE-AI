@@ -5,6 +5,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json',
   },
@@ -36,12 +37,16 @@ export const agentApi = {
   },
 
   chat: async (chatRequest: ChatRequest): Promise<ChatResponse> => {
-    const response = await api.post('/api/agents/chat', chatRequest)
+    const response = await api.post('/api/agents/chat-tools', chatRequest, {
+      timeout: 120000, // 2 minutes for AI responses (includes codebase analysis time)
+    })
     return response.data
   },
 
   getProactiveSuggestions: async (userId: string) => {
-    const response = await api.get(`/api/agents/user/${userId}/suggestions`)
+    const response = await api.get(`/api/agents/user/${userId}/suggestions`, {
+      timeout: 60000, // 60 seconds for AI suggestion generation
+    })
     return response.data
   },
 }
@@ -84,13 +89,58 @@ export const healthApi = {
 
 // Files API
 export const filesApi = {
-  list: async (): Promise<string[]> => {
-    const response = await api.get('/api/files/list')
+  list: async (signal?: AbortSignal): Promise<string[]> => {
+    const response = await api.get('/api/files/list', { signal })
     return response.data
   },
 
   read: async (path: string): Promise<string> => {
     const response = await api.get('/api/files/raw', { params: { path } })
+    return response.data
+  },
+
+  mkdir: async (path: string): Promise<void> => {
+    await api.post('/api/files/mkdir', null, { params: { path } })
+  },
+
+  upload: async (files: FileList, directory?: string): Promise<{ uploaded_files: string[], count: number }> => {
+    const formData = new FormData()
+    
+    // Add all files to form data
+    Array.from(files).forEach(file => {
+      formData.append('files', file)
+    })
+    
+    // Add directory if specified
+    if (directory) {
+      formData.append('directory', directory)
+    }
+    
+    // Get user_id from localStorage
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      formData.append('user_id', user.id)
+    }
+    
+    const response = await api.post('/api/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000, // 60 seconds for file uploads
+    })
+    
+    return response.data
+  },
+
+  summary: async (): Promise<{
+    total_files: number
+    file_types: Record<string, number>
+    ai_accessible_count: number
+    ai_accessible_files: Array<{ path: string; type: string; size: number }>
+    workspace_tools: string[]
+  }> => {
+    const response = await api.get('/api/files/summary')
     return response.data
   },
 }
@@ -138,6 +188,14 @@ export const companyApi = {
       product_overview: string
       tech_stack: string
       go_to_market_strategy: string
+    }
+  },
+  getCodebaseFiles: async (userId: string): Promise<string[]> => {
+    try {
+      const company = await companyApi.getByUser(userId)
+      return company?.codebase_files || []
+    } catch (e) {
+      return []
     }
   },
 } 

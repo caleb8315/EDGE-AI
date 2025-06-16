@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import asyncio
+from app.background_workers import task_completion_worker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +63,11 @@ app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(files_route.router, prefix="/api", tags=["files"])
 app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
+
+@app.on_event("startup")
+async def _launch_background_workers():
+    """Kick off async background tasks when the API starts."""
+    asyncio.create_task(task_completion_worker())
 
 if __name__ == "__main__":
     import uvicorn

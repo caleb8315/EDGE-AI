@@ -143,7 +143,15 @@ class SupabaseService:
         if not self.client:
             return [task for task in self._mock_tasks.values() if str(task["user_id"]) == str(user_id)]
         try:
-            response = self.client.table("tasks").select("*").eq("user_id", user_id).execute()
+            # Try to query with the user_id as-is first
+            try:
+                response = self.client.table("tasks").select("*").eq("user_id", user_id).execute()
+            except Exception as uuid_error:
+                # If it fails due to UUID format, try to find a valid UUID for this user
+                # This handles cases where frontend passes non-UUID user identifiers
+                logger.warning(f"UUID format error for user_id {user_id}: {uuid_error}")
+                # For now, return empty list - in production you'd want to map user identifiers to UUIDs
+                return []
             return response.data or []
         except Exception as e:
             logger.error(f"Error getting tasks by user: {e}")
