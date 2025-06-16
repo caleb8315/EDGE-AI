@@ -222,8 +222,10 @@ class SupabaseService:
             return mock_company
 
         try:
-            # Only include known columns to avoid PGRST errors when the DB schema
-            # hasn't yet been updated with new fields like `codebase_files`.
+            # NOTE: The Supabase `companies` table may not yet have the extended
+            # context columns (e.g. `company_info`, `product_overview`, etc.).
+            # To avoid "PGRST204: column does not exist" errors we conservatively
+            # whitelist only the core columns that are guaranteed to be present.
             _allowed_cols = {
                 "id",
                 "user_id",
@@ -235,7 +237,7 @@ class SupabaseService:
                 "product_overview",
                 "tech_stack",
                 "go_to_market_strategy",
-                "codebase_files",  # optional – add this column in Supabase if desired
+                "codebase_files",
                 "created_at",
                 "updated_at",
             }
@@ -281,7 +283,23 @@ class SupabaseService:
                 return self._mock_companies[company_id]
             return None
         try:
-            sanitized = {k: (str(v) if isinstance(v, UUID) else v) for k, v in company_data.items()}
+            # For the same reasons as in `create_company`, filter to recognized columns
+            _allowed_cols = {
+                "name",
+                "description",
+                "industry",
+                "stage",
+                "company_info",
+                "product_overview",
+                "tech_stack",
+                "go_to_market_strategy",
+                "codebase_files",
+            }
+            sanitized = {
+                k: (str(v) if isinstance(v, UUID) else v)
+                for k, v in company_data.items()
+                if k in _allowed_cols
+            }
             response = self.client.table("companies").update(sanitized).eq("id", company_id).execute()
             return response.data[0] if response.data else None
         except Exception as e:
