@@ -10,3 +10,4 @@ duckduckgo-search==4.1.1
 notion-client==2.2.1
 email-validator==2.1.0
 pydantic[email]
+python-multipart==0.0.7
