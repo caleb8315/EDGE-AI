@@ -9,7 +9,6 @@ python-multipart==0.0.6
 beautifulsoup4==4.12.3
 langchain==0.1.15
 crewai
-chromadb==0.4.24
 pdfplumber==0.10.3
 duckduckgo-search==4.1.1
 notion-client==2.2.1 
