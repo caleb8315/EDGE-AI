@@ -130,8 +130,23 @@ class SupabaseService:
             return mock_task
         
         try:
-            # Supabase client needs plain JSON; convert UUIDs to strings
-            sanitized = {k: (str(v) if isinstance(v, UUID) else v) for k, v in task_data.items()}
+            # Only include columns that exist in the Supabase `tasks` table to avoid
+            # PostgREST errors like PGRST204 when an unexpected column is sent.
+            _allowed_cols = {
+                "id",
+                "user_id",
+                "assigned_to_role",
+                "description",
+                "status",
+                "resources",
+                "created_at",
+                "updated_at",
+            }
+            sanitized = {
+                k: (str(v) if isinstance(v, UUID) else v)
+                for k, v in task_data.items()
+                if k in _allowed_cols
+            }
             response = self.client.table("tasks").insert(sanitized).execute()
             return response.data[0] if response.data else None
         except Exception as e:
@@ -223,8 +238,16 @@ class SupabaseService:
                         return comp
             return None
         try:
-            response = self.client.table("companies").select("*").eq("user_id", user_id).single().execute()
-            return response.data if response.data else None
+            # Fetch at most one matching row; avoid `.single()` so we don't raise
+            # a 406 error when zero rows are found (PGRST116).
+            response = (
+                self.client.table("companies")
+                .select("*")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error getting company by user: {e}")
             raise

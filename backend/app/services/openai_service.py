@@ -327,8 +327,7 @@ Always consider: Who is our target customer? What's the customer acquisition cos
                     tasks.append({
                         "assigned_to_role": ai_role,
                         "description": description,
-                        "status": "pending",
-                        "priority": "high" if "MVP" in description or "framework" in description else "medium"
+                        "status": "pending"
                     })
             
             return tasks
@@ -372,9 +371,7 @@ Always consider: Who is our target customer? What's the customer acquisition cos
                         tasks.append({
                             "assigned_to_role": ai_role,
                             "description": description.strip(),
-                            "status": "pending",
-                            "priority": "high" if i < 2 else "medium",  # First 2 tasks are high priority
-                            "estimated_hours": 8 if "research" in description.lower() or "analysis" in description.lower() else 4
+                            "status": "pending"
                         })
             
             return tasks
