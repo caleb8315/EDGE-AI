@@ -12,7 +12,7 @@ services:
     buildCommand: |
       pip install -r backend/requirements.txt
     startCommand: |
-      uvicorn app.main:app --reload --port $PORT
+      python -m app.main
     envVars:
       - key: OPENAI_API_KEY          # secret
         sync: false
