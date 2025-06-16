@@ -81,4 +81,27 @@ class ChatMessage(BaseModel):
 class ChatResponse(BaseModel):
     agent_role: RoleEnum
     message: str
-    conversation_state: Optional[Dict[str, Any]] = None 
+    conversation_state: Optional[Dict[str, Any]] = None
+
+# Company Models
+class CompanyBase(BaseModel):
+    user_id: UUID
+    name: str
+    description: Optional[str] = None
+    industry: Optional[str] = None
+    stage: Optional[str] = None  # e.g., idea, prototype, launched
+    company_info: Optional[str] = None  # Broader context about the company vision/mission
+    product_overview: Optional[str] = None  # Short description of the main product
+    tech_stack: Optional[str] = None  # Primary technologies being used or considered
+    go_to_market_strategy: Optional[str] = None  # High-level GTM strategy statement
+
+class CompanyCreate(CompanyBase):
+    pass
+
+class Company(CompanyBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True 

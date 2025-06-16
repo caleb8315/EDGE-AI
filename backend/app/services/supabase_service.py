@@ -167,5 +167,74 @@ class SupabaseService:
             logger.error(f"Error updating task: {e}")
             raise
 
+    async def delete_task(self, task_id: str) -> bool:
+        """Delete a task"""
+        if not self.client:
+            if task_id in self._mock_tasks:
+                del self._mock_tasks[task_id]
+                return True
+            return False
+        try:
+            self.client.table("tasks").delete().eq("id", task_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting task: {e}")
+            raise
+
+    async def create_company(self, company_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create company profile"""
+        if not self.client:
+            import uuid
+            mock_company = {
+                **company_data,
+                "id": str(uuid.uuid4()),
+                "created_at": "2023-01-01T00:00:00Z",
+                "updated_at": "2023-01-01T00:00:00Z",
+            }
+            # Store in _mock_companies dict which we create lazily
+            if not hasattr(self, "_mock_companies"):
+                self._mock_companies = {}
+            self._mock_companies[mock_company["id"]] = mock_company
+            logger.info(f"Mock: Created company {mock_company}")
+            return mock_company
+
+        try:
+            sanitized = {k: (str(v) if isinstance(v, UUID) else v) for k, v in company_data.items()}
+            response = self.client.table("companies").insert(sanitized).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            logger.error(f"Error creating company: {e}")
+            raise
+
+    async def get_company_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch company profile for a user"""
+        if not self.client:
+            if hasattr(self, "_mock_companies"):
+                for comp in self._mock_companies.values():
+                    if str(comp.get("user_id")) == str(user_id):
+                        return comp
+            return None
+        try:
+            response = self.client.table("companies").select("*").eq("user_id", user_id).single().execute()
+            return response.data if response.data else None
+        except Exception as e:
+            logger.error(f"Error getting company by user: {e}")
+            raise
+
+    async def update_company(self, company_id: str, company_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update company"""
+        if not self.client:
+            if hasattr(self, "_mock_companies") and company_id in self._mock_companies:
+                self._mock_companies[company_id].update(company_data)
+                return self._mock_companies[company_id]
+            return None
+        try:
+            sanitized = {k: (str(v) if isinstance(v, UUID) else v) for k, v in company_data.items()}
+            response = self.client.table("companies").update(sanitized).eq("id", company_id).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            logger.error(f"Error updating company: {e}")
+            raise
+
 # Create a singleton instance
 supabase_service = SupabaseService() 

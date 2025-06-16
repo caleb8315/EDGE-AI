@@ -54,12 +54,13 @@ async def health_check():
     }
 
 # Import and include routers
-from app.routes import users, agents, tasks, files as files_route
+from app.routes import users, agents, tasks, files as files_route, companies
 
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(files_route.router, prefix="/api", tags=["files"])
+app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
 
 if __name__ == "__main__":
     import uvicorn

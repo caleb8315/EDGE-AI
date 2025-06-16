@@ -434,5 +434,47 @@ Always consider: Who is our target customer? What's the customer acquisition cos
             logger.error(f"Error generating proactive suggestions: {e}")
             return []
 
+    def _mock_company_suggestions(self, company_name: str) -> Dict[str, str]:
+        """Return mock suggestions for company context fields"""
+        return {
+            "company_info": f"{company_name} is an innovative startup focused on solving key industry challenges.",
+            "product_overview": "Our product leverages AI to deliver real-time insights and automation.",
+            "tech_stack": "React, Next.js, Python, FastAPI, PostgreSQL",
+            "go_to_market_strategy": "Launch an MVP targeting early adopters through niche communities and partnerships."
+        }
+
+    async def generate_company_context_suggestions(self, company_name: str, description: str = "") -> Dict[str, str]:
+        """Generate concise suggestions for company context fields."""
+        if not self.client:
+            return self._mock_company_suggestions(company_name)
+
+        prompt = (
+            "You are a seasoned startup advisor AI. Based on the information provided, "
+            "draft concise suggestions (1-2 sentences each) for the following context fields. "
+            "Respond in strict JSON format with keys: company_info, product_overview, tech_stack, go_to_market_strategy.\n\n"
+            f"Company Name: {company_name}\n"
+            f"Description: {description}\n\n"
+            "Suggestions:"
+        )
+
+        try:
+            chat_completion = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            content = chat_completion.choices[0].message.content
+            import json as _json
+            suggestions = _json.loads(content)
+            # basic validation
+            expected_keys = {"company_info", "product_overview", "tech_stack", "go_to_market_strategy"}
+            if not expected_keys.issubset(suggestions.keys()):
+                raise ValueError("Incomplete keys in AI response")
+            return suggestions
+        except Exception as e:
+            logger.error(f"Error generating company context suggestions: {e}")
+            # fallback to mock
+            return self._mock_company_suggestions(company_name)
+
 # Create a singleton instance
 openai_service = OpenAIService() 

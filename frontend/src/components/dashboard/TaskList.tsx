@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { taskApi } from '@/lib/api'
 import { Task, User, RoleType } from '@/types'
 import { getRoleColor, formatDate } from '@/lib/utils'
-import { CheckCircle, Circle, Clock, Plus } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Plus, Pencil, Trash2 } from 'lucide-react'
 import AddTaskModal from './AddTaskModal'
+import EditTaskModal from './EditTaskModal'
 
 interface TaskListProps {
   user: User
@@ -18,6 +19,7 @@ export default function TaskList({ user }: TaskListProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [showAdd, setShowAdd] = useState(false)
+  const [editTask, setEditTask] = useState<Task | null>(null)
 
   useEffect(() => {
     loadTasks()
@@ -54,6 +56,20 @@ export default function TaskList({ user }: TaskListProps) {
     } catch (error) {
       console.error('Failed to update task:', error)
     }
+  }
+
+  const handleDelete = async (taskId: string) => {
+    if (!confirm('Delete this task?')) return
+    try {
+      await taskApi.delete(taskId)
+      setTasks(prev => prev.filter(t => t.id !== taskId))
+    } catch (err) {
+      console.error('Delete failed', err)
+    }
+  }
+
+  const handleTaskUpdated = (updated: Task) => {
+    setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
   }
 
   const filteredTasks = tasks.filter(task => {
@@ -182,6 +198,14 @@ export default function TaskList({ user }: TaskListProps) {
                         </div>
                       </div>
                     </div>
+                    <div className="flex gap-2 ml-2">
+                      <Button size="icon" variant="ghost" onClick={() => setEditTask(task)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleDelete(task.id)}>
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -195,6 +219,14 @@ export default function TaskList({ user }: TaskListProps) {
           onClose={() => setShowAdd(false)}
           user={user}
           onTaskCreated={handleTaskCreated}
+        />
+      )}
+      {editTask && (
+        <EditTaskModal
+          open={!!editTask}
+          task={editTask}
+          onClose={() => setEditTask(null)}
+          onTaskUpdated={handleTaskUpdated}
         />
       )}
     </>

@@ -95,9 +95,10 @@ async def update_task(task_id: str, task_update: TaskUpdate):
 async def delete_task(task_id: str):
     """Delete a task"""
     try:
-        # You'll need to add a delete method to supabase_service
-        # For now, we'll return a placeholder
-        return {"message": "Delete task endpoint - implement delete method in supabase_service"}
+        deleted = await supabase_service.delete_task(task_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        return {"detail": "deleted"}
     except Exception as e:
         logger.error(f"Error deleting task: {e}")
         raise HTTPException(

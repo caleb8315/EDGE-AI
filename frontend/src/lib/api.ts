@@ -36,7 +36,7 @@ export const agentApi = {
   },
 
   chat: async (chatRequest: ChatRequest): Promise<ChatResponse> => {
-    const response = await api.post('/api/agents/chat-tools', chatRequest)
+    const response = await api.post('/api/agents/chat', chatRequest)
     return response.data
   },
 
@@ -64,6 +64,10 @@ export const taskApi = {
     return response.data
   },
 
+  delete: async (taskId: string): Promise<void> => {
+    await api.delete(`/api/tasks/${taskId}`)
+  },
+
   getByRole: async (role: RoleType, userId: string): Promise<Task[]> => {
     const response = await api.get(`/api/tasks/role/${role}/user/${userId}`)
     return response.data
@@ -88,5 +92,52 @@ export const filesApi = {
   read: async (path: string): Promise<string> => {
     const response = await api.get('/api/files/raw', { params: { path } })
     return response.data
+  },
+}
+
+// Company API
+export const companyApi = {
+  create: async (company: {
+    user_id: string
+    name: string
+    description?: string
+    industry?: string
+    stage?: string
+    company_info?: string
+    product_overview?: string
+    tech_stack?: string
+    go_to_market_strategy?: string
+  }) => {
+    const response = await api.post('/api/companies/', company)
+    return response.data
+  },
+  getByUser: async (userId: string) => {
+    const response = await api.get(`/api/companies/user/${userId}`)
+    return response.data
+  },
+  update: async (
+    companyId: string,
+    company: Partial<{
+      name: string
+      description: string
+      industry: string
+      stage: string
+      company_info: string
+      product_overview: string
+      tech_stack: string
+      go_to_market_strategy: string
+    }>
+  ) => {
+    const response = await api.put(`/api/companies/${companyId}`, company)
+    return response.data
+  },
+  suggest: async (payload: { name: string; description?: string }) => {
+    const response = await api.post('/api/companies/suggest', payload)
+    return response.data as {
+      company_info: string
+      product_overview: string
+      tech_stack: string
+      go_to_market_strategy: string
+    }
   },
 } 

@@ -48,6 +48,10 @@ export default function DashboardPage() {
     router.push('/')
   }
 
+  const handleSettings = () => {
+    router.push('/settings')
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -84,7 +88,7 @@ export default function DashboardPage() {
                 {user.role}
               </Badge>
             </div>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleSettings}>
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </Button>

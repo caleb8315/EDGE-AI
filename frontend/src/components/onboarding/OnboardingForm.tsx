@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { userApi } from '@/lib/api'
+import { companyApi } from '@/lib/api'
 import { RoleType } from '@/types'
-import { getRoleColor, getRoleDescription } from '@/lib/utils'
+import { getRoleColor } from '@/lib/utils'
 
 const roles: { value: RoleType; label: string; description: string }[] = [
   { value: 'CEO', label: 'CEO', description: 'Vision, strategy, and financial decisions' },
@@ -18,15 +19,24 @@ const roles: { value: RoleType; label: string; description: string }[] = [
 export default function OnboardingForm() {
   const [email, setEmail] = useState('')
   const [selectedRole, setSelectedRole] = useState<RoleType | null>(null)
+  const [companyName, setCompanyName] = useState('')
+  const [companyDescription, setCompanyDescription] = useState('')
+  const [industry, setIndustry] = useState('')
+  const [stage, setStage] = useState('Idea')
+  const [companyInfo, setCompanyInfo] = useState('')
+  const [productOverview, setProductOverview] = useState('')
+  const [techStack, setTechStack] = useState('')
+  const [goToMarketStrategy, setGoToMarketStrategy] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [suggestLoading, setSuggestLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!email || !selectedRole) {
-      setError('Please fill in all fields')
+    if (!email || !selectedRole || !companyName) {
+      setError('Please fill in all required fields')
       return
     }
 
@@ -36,7 +46,20 @@ export default function OnboardingForm() {
     try {
       const user = await userApi.onboard(email, selectedRole)
       
-      // Store user data in localStorage for now (you might want to use a proper state management solution)
+      // Create company profile
+      await companyApi.create({
+        user_id: user.id,
+        name: companyName,
+        description: companyDescription,
+        industry,
+        stage,
+        company_info: companyInfo,
+        product_overview: productOverview,
+        tech_stack: techStack,
+        go_to_market_strategy: goToMarketStrategy,
+      })
+      
+      // Store user data & company in localStorage
       localStorage.setItem('user', JSON.stringify(user))
       
       // Redirect to dashboard
@@ -45,6 +68,22 @@ export default function OnboardingForm() {
       setError(err.response?.data?.detail || 'Failed to create account. Please try again.')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSuggest = async () => {
+    if (!companyName) return
+    try {
+      setSuggestLoading(true)
+      const suggestions = await companyApi.suggest({ name: companyName, description: companyDescription })
+      setCompanyInfo(suggestions.company_info)
+      setProductOverview(suggestions.product_overview)
+      setTechStack(suggestions.tech_stack)
+      setGoToMarketStrategy(suggestions.go_to_market_strategy)
+    } catch (e) {
+      console.error('Failed to get suggestions', e)
+    } finally {
+      setSuggestLoading(false)
     }
   }
 
@@ -113,6 +152,111 @@ export default function OnboardingForm() {
               </div>
             </div>
 
+            {/* Company Name */}
+            <div className="space-y-2">
+              <label htmlFor="companyName" className="text-sm font-medium">
+                Company / Project Name
+              </label>
+              <Input
+                id="companyName"
+                placeholder="My Awesome Startup"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+              />
+            </div>
+            {/* Company Description */}
+            <div className="space-y-2">
+              <label htmlFor="companyDescription" className="text-sm font-medium">
+                One-line Description
+              </label>
+              <Input
+                id="companyDescription"
+                placeholder="e.g., AI-powered marketing analytics platform"
+                value={companyDescription}
+                onChange={(e) => setCompanyDescription(e.target.value)}
+              />
+            </div>
+            {/* Industry & Stage */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="industry" className="text-sm font-medium">
+                  Industry
+                </label>
+                <Input
+                  id="industry"
+                  placeholder="FinTech, HealthTech, etc."
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="stage" className="text-sm font-medium">
+                  Stage
+                </label>
+                <Input
+                  id="stage"
+                  placeholder="Idea, Prototype, Launched"
+                  value={stage}
+                  onChange={(e) => setStage(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Additional Context Fields */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Additional Context (optional)</h3>
+              <Button type="button" size="sm" variant="outline" onClick={handleSuggest} disabled={!companyName || suggestLoading}>
+                {suggestLoading ? 'Generating...' : 'Get AI Suggestions'}
+              </Button>
+            </div>
+
+            {/* Extended Context Fields */}
+            <div className="space-y-2">
+              <label htmlFor="companyInfo" className="text-sm font-medium">
+                Company Info
+              </label>
+              <Input
+                id="companyInfo"
+                placeholder="Brief background of your company"
+                value={companyInfo}
+                onChange={(e) => setCompanyInfo(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="productOverview" className="text-sm font-medium">
+                Product Overview
+              </label>
+              <Input
+                id="productOverview"
+                placeholder="Describe your main product"
+                value={productOverview}
+                onChange={(e) => setProductOverview(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="techStack" className="text-sm font-medium">
+                Tech Stack
+              </label>
+              <Input
+                id="techStack"
+                placeholder="e.g., React, Next.js, Python, FastAPI"
+                value={techStack}
+                onChange={(e) => setTechStack(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="gtmStrategy" className="text-sm font-medium">
+                Go-to-Market Strategy
+              </label>
+              <Input
+                id="gtmStrategy"
+                placeholder="e.g., target early adopters via ..."
+                value={goToMarketStrategy}
+                onChange={(e) => setGoToMarketStrategy(e.target.value)}
+              />
+            </div>
+
             {/* Error Message */}
             {error && (
               <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
@@ -125,7 +269,7 @@ export default function OnboardingForm() {
               type="submit" 
               className="w-full" 
               size="lg"
-              disabled={isLoading || !email || !selectedRole}
+              disabled={isLoading || !email || !selectedRole || !companyName}
             >
               {isLoading ? 'Creating Account...' : 'Start Building Your Startup'}
             </Button>

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { taskApi } from '@/lib/api'
-import { Task, RoleType } from '@/types'
+import { Task } from '@/types'
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Pencil, Trash2 } from 'lucide-react'
+import EditTaskModal from './EditTaskModal'
 
 interface CompletedTasksProps {
   userId: string
@@ -10,6 +13,7 @@ interface CompletedTasksProps {
 
 export default function CompletedTasks({ userId }: CompletedTasksProps) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [editTask, setEditTask] = useState<Task | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -23,7 +27,22 @@ export default function CompletedTasks({ userId }: CompletedTasksProps) {
     load()
   }, [userId])
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this task?')) return
+    try {
+      await taskApi.delete(id)
+      setTasks(prev => prev.filter(t => t.id !== id))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleTaskUpdated = (updated: Task) => {
+    setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
+  }
+
   return (
+    <>
     <Card className="max-h-72 flex flex-col">
       <CardHeader>
         <CardTitle>Completed Tasks</CardTitle>
@@ -32,9 +51,15 @@ export default function CompletedTasks({ userId }: CompletedTasksProps) {
         {tasks.length === 0 && <p className="text-sm text-gray-500">No completed tasks yet.</p>}
         {tasks.map(task => (
           <div key={task.id} className="border rounded-md p-3">
-            <div className="flex justify-between items-center">
-              <p className="text-sm font-medium">{task.description}</p>
+            <div className="flex justify-between items-center gap-2">
+              <p className="text-sm font-medium flex-1">{task.description}</p>
               <Badge>{task.assigned_to_role}</Badge>
+              <Button size="icon" variant="ghost" onClick={() => setEditTask(task)}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => handleDelete(task.id)}>
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </Button>
             </div>
             {task.resources && task.resources.length > 0 && (
               <ul className="mt-2 text-xs list-disc list-inside space-y-1">
@@ -48,5 +73,9 @@ export default function CompletedTasks({ userId }: CompletedTasksProps) {
         ))}
       </CardContent>
     </Card>
+    {editTask && (
+      <EditTaskModal open={!!editTask} task={editTask} onClose={() => setEditTask(null)} onTaskUpdated={handleTaskUpdated} />
+    )}
+    </>
   )
 } 

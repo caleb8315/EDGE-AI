@@ -57,4 +57,19 @@ export interface Suggestion {
   action: string
   priority: 'high' | 'medium' | 'low'
   from_agent?: RoleType | null
+}
+
+export interface Company {
+  id: string
+  user_id: string
+  name: string
+  description?: string
+  industry?: string
+  stage?: string
+  company_info?: string
+  product_overview?: string
+  tech_stack?: string
+  go_to_market_strategy?: string
+  created_at: string
+  updated_at: string
 } 

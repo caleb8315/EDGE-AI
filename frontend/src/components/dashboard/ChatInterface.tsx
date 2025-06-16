@@ -46,7 +46,7 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
   const [isLoading, setIsLoading] = useState(false)
   const [agentStatus, setAgentStatus] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,7 +63,8 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
         const agents = await agentApi.getUserAgents(user.id)
         const target = agents.find(a => a.role === selectedAgent)
         if (target && target.conversation_state && Array.isArray(target.conversation_state.messages)) {
-          setMessages(target.conversation_state.messages)
+          const hist = target.conversation_state.messages || []
+          setMessages(hist.slice(-10))
           setAgentStatus(target.conversation_state)
         } else {
           setMessages([])
