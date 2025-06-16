@@ -222,7 +222,28 @@ class SupabaseService:
             return mock_company
 
         try:
-            sanitized = {k: (str(v) if isinstance(v, UUID) else v) for k, v in company_data.items()}
+            # Only include known columns to avoid PGRST errors when the DB schema
+            # hasn't yet been updated with new fields like `codebase_files`.
+            _allowed_cols = {
+                "id",
+                "user_id",
+                "name",
+                "description",
+                "industry",
+                "stage",
+                "company_info",
+                "product_overview",
+                "tech_stack",
+                "go_to_market_strategy",
+                "codebase_files",  # optional – add this column in Supabase if desired
+                "created_at",
+                "updated_at",
+            }
+            sanitized = {
+                k: (str(v) if isinstance(v, UUID) else v)
+                for k, v in company_data.items()
+                if k in _allowed_cols
+            }
             response = self.client.table("companies").insert(sanitized).execute()
             return response.data[0] if response.data else None
         except Exception as e:

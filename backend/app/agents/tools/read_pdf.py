@@ -52,8 +52,8 @@ class ReadPDFTool(BaseTool):
                     path = workspace_path
                 else:
                     path = Path(source)
-            else:
-                path = Path(source)
+        else:
+            path = Path(source)
             
             if not path.exists():
                 # Try to give helpful error if it might be in workspace
@@ -66,15 +66,15 @@ class ReadPDFTool(BaseTool):
 
         text_parts = []
         try:
-            with pdfplumber.open(str(path)) as pdf:
+        with pdfplumber.open(str(path)) as pdf:
                 total_pages = len(pdf.pages)
                 pages_to_read = min(total_pages, max_pages or total_pages)
                 
                 text_parts.append(f"📄 PDF: {path.name} ({total_pages} pages, reading {pages_to_read})\n")
                 
-                for i, page in enumerate(pdf.pages):
-                    if max_pages is not None and i >= max_pages:
-                        break
+            for i, page in enumerate(pdf.pages):
+                if max_pages is not None and i >= max_pages:
+                    break
                     page_text = page.extract_text() or ""
                     if page_text.strip():
                         text_parts.append(f"--- Page {i+1} ---\n{page_text}")

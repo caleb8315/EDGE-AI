@@ -142,17 +142,17 @@ async def upload_files(
     # Update company's codebase_files field asynchronously (don't wait for it)
     import asyncio
     async def update_company_files():
-        try:
-            company = await supabase_service.get_company_by_user(user_id)
-            if company:
-                existing_files = company.get("codebase_files", []) or []
-                # Add new files to existing list (avoid duplicates)
-                updated_files = list(set(existing_files + uploaded_files))
-                await supabase_service.update_company(company["id"], {"codebase_files": updated_files})
-        except Exception as e:
-            # Don't fail the upload if company update fails, just log it
-            print(f"Warning: Failed to update company codebase_files: {e}")
-    
+    try:
+        company = await supabase_service.get_company_by_user(user_id)
+        if company:
+            existing_files = company.get("codebase_files", []) or []
+            # Add new files to existing list (avoid duplicates)
+            updated_files = list(set(existing_files + uploaded_files))
+            await supabase_service.update_company(company["id"], {"codebase_files": updated_files})
+    except Exception as e:
+        # Don't fail the upload if company update fails, just log it
+        print(f"Warning: Failed to update company codebase_files: {e}")
+
     # Start the company update task but don't wait for it
     asyncio.create_task(update_company_files())
     

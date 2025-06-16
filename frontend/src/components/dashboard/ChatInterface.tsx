@@ -132,8 +132,8 @@ export default function ChatInterface({ user, selectedAgent }: ChatInterfaceProp
           const updated = [...prev]
           const lastIndex = updated.length - 1
           if (updated[lastIndex]) {
-            updated[lastIndex] = {
-              ...updated[lastIndex],
+          updated[lastIndex] = {
+            ...updated[lastIndex],
               message: textChunk
             }
           }

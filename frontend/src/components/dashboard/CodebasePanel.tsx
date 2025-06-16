@@ -41,13 +41,13 @@ export default function CodebasePanel({ userId }: CodebasePanelProps) {
       try {
         const summary = await filesApi.summary()
         setAiSummary(summary)
-      } catch (e) {
+    } catch (e) {
         console.error('Failed to load AI summary', e)
       }
     } catch (e: any) {
       // Only log error if it's not an abort/cancel error
       if (e.name !== 'AbortError' && e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
-        console.error('Failed to load directories', e)
+      console.error('Failed to load directories', e)
       }
     }
   }
