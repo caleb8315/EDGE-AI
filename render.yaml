@@ -8,11 +8,11 @@ services:
     region: oregon     # or your preferred region
     plan: free         # starter plan
     autoDeploy: true
+    workingDir: backend
     buildCommand: |
       pip install -r backend/requirements.txt
     startCommand: |
       uvicorn backend.app.main:app --reload --port $PORT
-      workingDir: backend
     envVars:
       - key: OPENAI_API_KEY          # secret
         sync: false
