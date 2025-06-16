@@ -21,6 +21,7 @@ services:
         sync: false
       - key: ENVIRONMENT
         value: production
+    pythonVersion: 3.11
 
   ##############################################################################
   # Next.js 14 frontend
