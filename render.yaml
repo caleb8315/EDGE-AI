@@ -11,7 +11,8 @@ services:
     buildCommand: |
       pip install -r backend/requirements.txt
     startCommand: |
-      uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+      cd backend
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: OPENAI_API_KEY          # secret
         sync: false
@@ -22,8 +23,8 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: PYTHON_VERSION
-        value: 3.10
-    pythonVersion: 3.10
+        value: 3.11
+    pythonVersion: 3.11
 
   ##############################################################################
   # Next.js 14 frontend
