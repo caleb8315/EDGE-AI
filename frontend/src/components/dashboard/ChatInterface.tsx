@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { agentApi } from '@/lib/api'
-import { RoleType, ChatMessage, User } from '@/types'
+import { RoleType, ChatMessage, User, ChatResponse } from '@/types'
 import { getRoleColor, formatDate } from '@/lib/utils'
 import { Send, Bot, User as UserIcon, Brain, Zap, Target } from 'lucide-react'
 
