@@ -1,1 +1,0 @@
-# AI Startup Assistant Backend 
