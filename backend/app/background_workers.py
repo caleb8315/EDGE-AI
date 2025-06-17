@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_SEC = 30  # how often to look for new pending tasks
 
+def get_user_workspace_for_task(task: Dict[str, Any]) -> Path:
+    """Get the user-specific workspace directory for a task."""
+    # Use auth_user_id for workspace isolation (Supabase Auth user ID)
+    auth_user_id = task.get("auth_user_id")
+    if not auth_user_id:
+        # Fallback to user_id for backwards compatibility
+        auth_user_id = task.get("user_id", "unknown")
+    
+    # Create user workspace directory
+    user_workspace = WORKSPACE_ROOT / str(auth_user_id)
+    user_workspace.mkdir(parents=True, exist_ok=True)
+    return user_workspace
 
 async def _fetch_pending_tasks() -> List[Dict[str, Any]]:
     """Return a list of tasks (dicts) that are still pending."""
@@ -35,6 +47,7 @@ async def _infer_filename_and_content(task: Dict[str, Any]) -> tuple[str, str]:
     """Return (relative_path, file_content) that fulfils *task*."""
     description = task.get("description", "")
     role = task.get("assigned_to_role", "AI")
+    user_id = task.get("user_id", "unknown")
 
     # ------------------------------------------------------------------
     # Decide on file extension based on simple heuristics
@@ -45,7 +58,10 @@ async def _infer_filename_and_content(task: Dict[str, Any]) -> tuple[str, str]:
     elif re.search(r"\bmarkdown|\.md\b", description, re.I):
         ext = "md"
 
-    rel_path = f"completed_tasks/{task['id']}.{ext}"
+    # Create user-specific completed_tasks folder
+    # Include auth_user_id in the path so it matches the workspace structure
+    auth_user_id = task.get("auth_user_id") or task.get("user_id", "unknown")
+    rel_path = f"{auth_user_id}/completed_tasks/{task['id']}.{ext}"
 
     # ------------------------------------------------------------------
     # Build prompt for OpenAI to actually accomplish the task
@@ -88,17 +104,26 @@ async def _complete_task(task: Dict[str, Any]):
 
     # Generate deliverable
     rel_path, content = await _infer_filename_and_content(task)
-    abs_path = (WORKSPACE_ROOT / rel_path).resolve()
+    
+    # Get user-specific workspace
+    user_workspace = get_user_workspace_for_task(task)
+    
+    # Save to user workspace (rel_path now includes user_id prefix)
+    # But extract just the file part for saving within the user's directory
+    auth_user_id = task.get("auth_user_id") or task.get("user_id", "unknown")
+    local_path = rel_path.replace(f"{auth_user_id}/", "", 1)  # Remove user prefix for local save
+    
+    abs_path = (user_workspace / local_path).resolve()
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_text(content)
 
-    # Update task in DB/mock
+    # Store the path without user prefix in DB (files API expects relative to user workspace)
     existing_resources = task.get("resources") or []
-    if rel_path not in existing_resources:
-        existing_resources.append(rel_path)
+    if local_path not in existing_resources:
+        existing_resources.append(local_path)
 
     await supabase_service.update_task(task_id, {"status": "completed", "resources": existing_resources})
-    logger.info(f"Task {task_id} completed with deliverable {rel_path}")
+    logger.info(f"Task {task_id} completed with deliverable {local_path} in user workspace")
 
 
 async def task_completion_worker():

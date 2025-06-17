@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { User, Agent, Task, ChatRequest, ChatResponse, RoleType } from '@/types'
+import { supabase } from './supabaseClient'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -11,10 +12,23 @@ const api = axios.create({
   },
 })
 
+// Add auth interceptor to include Supabase session token
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`
+  }
+  return config
+}, (error) => {
+  return Promise.reject(error)
+})
+
 // User API
 export const userApi = {
   onboard: async (email: string, role: RoleType): Promise<User> => {
-    const response = await api.post('/api/users/onboard', { email, role })
+    const response = await api.post('/api/users/onboard', { email, role }, {
+      timeout: 60000, // 60 seconds for onboarding (includes AI task generation)
+    })
     return response.data
   },
 
@@ -141,6 +155,11 @@ export const filesApi = {
     workspace_tools: string[]
   }> => {
     const response = await api.get('/api/files/summary')
+    return response.data
+  },
+
+  getCompletedTasks: async (userId: string): Promise<string[]> => {
+    const response = await api.get(`/api/files/completed-tasks/${userId}`)
     return response.data
   },
 }

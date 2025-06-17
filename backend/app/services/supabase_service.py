@@ -1,5 +1,5 @@
 from supabase import create_client, Client
-from app.config import SUPABASE_URL, SUPABASE_KEY
+from app.config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
 from typing import Dict, List, Optional, Any
 import logging
 from uuid import UUID
@@ -9,8 +9,9 @@ logger = logging.getLogger(__name__)
 class SupabaseService:
     def __init__(self):
         # Only create client if we have valid credentials
-        if SUPABASE_URL and SUPABASE_URL != "https://placeholder.supabase.co" and SUPABASE_KEY and SUPABASE_KEY != "placeholder_key":
-            self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        if SUPABASE_URL and SUPABASE_URL != "https://placeholder.supabase.co" and SUPABASE_SERVICE_KEY and SUPABASE_SERVICE_KEY != "placeholder_key":
+            # Use service role key for backend operations (bypasses RLS)
+            self.client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
         else:
             self.client = None
             print("⚠️  Warning: Using placeholder Supabase credentials. Database operations will be mocked.")

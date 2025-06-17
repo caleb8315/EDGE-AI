@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { taskApi } from '@/lib/api'
+import { taskApi, filesApi } from '@/lib/api'
 import { Task } from '@/types'
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
@@ -41,6 +41,21 @@ export default function CompletedTasks({ userId }: CompletedTasksProps) {
     setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
   }
 
+  const handleDownloadFile = async (filePath: string) => {
+    try {
+      const content = await filesApi.read(filePath)
+      const blob = new Blob([content], { type: 'text/plain' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filePath.split('/').pop() || 'download.txt'
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to download file:', e)
+    }
+  }
+
   return (
     <>
     <Card className="max-h-72 flex flex-col">
@@ -64,7 +79,7 @@ export default function CompletedTasks({ userId }: CompletedTasksProps) {
             {task.resources && task.resources.length > 0 && (
               <ul className="mt-2 text-xs list-disc list-inside space-y-1">
                 {task.resources.map(res => (
-                  <li key={res} className="text-blue-600 hover:underline cursor-pointer" onClick={() => window.open(`/api/files/raw?path=${encodeURIComponent(res)}`, '_blank')}>{res}</li>
+                  <li key={res} className="text-blue-600 hover:underline cursor-pointer" onClick={() => handleDownloadFile(res)}>{res}</li>
                 ))}
               </ul>
             )}

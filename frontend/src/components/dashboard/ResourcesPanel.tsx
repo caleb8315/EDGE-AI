@@ -76,9 +76,24 @@ export default function ResourcesPanel({ onSelect }: ResourcesPanelProps) {
                       onClick={() => handleSelect(f)}
                     >
                       <span className="truncate text-left">{f.split('/').slice(1).join('/') || f}</span>
-                      <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/files/raw?path=${encodeURIComponent(f)}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                        <Download className="w-4 h-4 opacity-70 hover:opacity-100" />
-                      </a>
+                      <Download 
+                        className="w-4 h-4 opacity-70 hover:opacity-100 cursor-pointer" 
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          try {
+                            const content = await filesApi.read(f)
+                            const blob = new Blob([content], { type: 'text/plain' })
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = f.split('/').pop() || 'download.txt'
+                            a.click()
+                            window.URL.revokeObjectURL(url)
+                          } catch (e) {
+                            console.error('Failed to download file:', e)
+                          }
+                        }}
+                      />
                     </Button>
                   </li>
                 ))}

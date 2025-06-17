@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { userApi } from '@/lib/api'
 import { companyApi } from '@/lib/api'
+import { supabase } from '@/lib/supabaseClient'
 import { RoleType } from '@/types'
 import { getRoleColor } from '@/lib/utils'
 
@@ -30,13 +31,20 @@ export default function OnboardingForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [suggestLoading, setSuggestLoading] = useState(false)
   const [error, setError] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!email || !selectedRole || !companyName) {
+    if (!email || !password || !confirmPassword || !selectedRole || !companyName) {
       setError('Please fill in all required fields')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
       return
     }
 
@@ -44,6 +52,14 @@ export default function OnboardingForm() {
     setError('')
 
     try {
+      // 1) Create user in Supabase Auth
+      const { error: signUpError } = await supabase.auth.signUp({ email, password })
+
+      if (signUpError) {
+        throw new Error(signUpError.message)
+      }
+
+      // 2) Create user profile in our backend DB (role, etc.)
       const user = await userApi.onboard(email, selectedRole)
       
       // Create company profile
@@ -65,7 +81,17 @@ export default function OnboardingForm() {
       // Redirect to dashboard
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create account. Please try again.')
+      let msg = 'Failed to create account. Please try again.'
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        msg = 'Account creation is taking longer than expected. Your account may have been created successfully. Try logging in or wait a moment and try again.'
+      } else if (err?.response?.data?.detail) {
+        msg = err.response.data.detail
+      } else if (err.message) {
+        msg = err.message
+      }
+      
+      setError(msg)
     } finally {
       setIsLoading(false)
     }
@@ -98,7 +124,7 @@ export default function OnboardingForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Input */}
+            {/* Email & Password */}
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
                 Email Address
@@ -111,6 +137,35 @@ export default function OnboardingForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm font-medium">
+                  Password
+                </label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                  Confirm Password
+                </label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Repeat password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             {/* Role Selection */}
@@ -269,7 +324,7 @@ export default function OnboardingForm() {
               type="submit" 
               className="w-full" 
               size="lg"
-              disabled={isLoading || !email || !selectedRole || !companyName}
+              disabled={isLoading || !email || !password || !confirmPassword || !selectedRole || !companyName}
             >
               {isLoading ? 'Creating Account...' : 'Start Building Your Startup'}
             </Button>

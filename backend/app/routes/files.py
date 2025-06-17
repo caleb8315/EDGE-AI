@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """File browsing endpoints for EDGE workspace resources."""
 
-from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Form, Depends
 from fastapi.responses import FileResponse, PlainTextResponse
 from typing import List
 from pathlib import Path
@@ -11,20 +11,27 @@ import shutil
 
 from app.config import ENVIRONMENT  # just to ensure config import works
 from app.services.supabase_service import supabase_service
+from app.auth import get_current_user, AuthUser
 
 WORKSPACE_ROOT = Path(os.getenv("EDGE_WORKSPACE", "/tmp/edge_workspace")).resolve()
 
 router = APIRouter(prefix="/files", tags=["files"])
 
+def get_user_workspace(auth_user: AuthUser) -> Path:
+    """Get the workspace directory for a specific authenticated user."""
+    user_workspace = WORKSPACE_ROOT / auth_user.auth_id
+    user_workspace.mkdir(parents=True, exist_ok=True)
+    return user_workspace
 
 @router.get("/list", response_model=List[str])
-async def list_files(subdir: str | None = None):
+async def list_files(subdir: str | None = None, current_user: AuthUser = Depends(get_current_user)):
     """Return relative file paths under the workspace.
 
     If *subdir* is provided, list inside that directory.
     """
-    base = (WORKSPACE_ROOT / subdir).resolve() if subdir else WORKSPACE_ROOT
-    if not base.is_relative_to(WORKSPACE_ROOT):
+    user_workspace = get_user_workspace(current_user)
+    base = (user_workspace / subdir).resolve() if subdir else user_workspace
+    if not base.is_relative_to(user_workspace):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not base.exists():
         raise HTTPException(status_code=404, detail="Path not found")
@@ -32,19 +39,38 @@ async def list_files(subdir: str | None = None):
     files = []
     for p in base.rglob("*"):
         if p.is_file():
-            files.append(str(p.relative_to(WORKSPACE_ROOT)))
+            files.append(str(p.relative_to(user_workspace)))
+    return files
+
+
+@router.get("/completed-tasks/{user_id}", response_model=List[str])
+async def list_user_completed_tasks(user_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Return completed task files for a specific user."""
+    user_workspace = get_user_workspace(current_user)
+    user_tasks_dir = user_workspace / "completed_tasks" / user_id
+    if not user_tasks_dir.exists():
+        return []
+    
+    if not user_tasks_dir.is_relative_to(user_workspace):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    files = []
+    for p in user_tasks_dir.rglob("*"):
+        if p.is_file():
+            files.append(str(p.relative_to(user_workspace)))
     return files
 
 
 @router.get("/raw")
-async def get_file(path: str):
+async def get_file(path: str, current_user: AuthUser = Depends(get_current_user)):
     """Return the raw contents of *path* inside workspace.
 
     For binary files >1 MB we return as attachment; small text files are
     returned inline.
     """
-    abs_path = (WORKSPACE_ROOT / path).resolve()
-    if not abs_path.is_relative_to(WORKSPACE_ROOT):
+    user_workspace = get_user_workspace(current_user)
+    abs_path = (user_workspace / path).resolve()
+    if not abs_path.is_relative_to(user_workspace):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not abs_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -59,10 +85,11 @@ async def get_file(path: str):
 
 
 @router.post("/mkdir")
-async def make_directory(path: str):
+async def make_directory(path: str, current_user: AuthUser = Depends(get_current_user)):
     """Create a directory under the workspace (including parents)."""
-    abs_path = (WORKSPACE_ROOT / path).resolve()
-    if not abs_path.is_relative_to(WORKSPACE_ROOT):
+    user_workspace = get_user_workspace(current_user)
+    abs_path = (user_workspace / path).resolve()
+    if not abs_path.is_relative_to(user_workspace):
         raise HTTPException(status_code=400, detail="Invalid path")
     try:
         abs_path.mkdir(parents=True, exist_ok=True)
@@ -75,17 +102,19 @@ async def make_directory(path: str):
 async def upload_files(
     files: List[UploadFile] = File(...),
     directory: str = Form(default=""),
-    user_id: str = Form(...)
+    user_id: str = Form(...),
+    current_user: AuthUser = Depends(get_current_user)
 ):
     """Upload multiple files to a directory in the workspace, preserving folder structure."""
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
     # Determine target directory
-    target_dir = WORKSPACE_ROOT / directory if directory else WORKSPACE_ROOT
+    user_workspace = get_user_workspace(current_user)
+    target_dir = user_workspace / directory if directory else user_workspace
     target_dir = target_dir.resolve()
     
-    if not target_dir.is_relative_to(WORKSPACE_ROOT):
+    if not target_dir.is_relative_to(user_workspace):
         raise HTTPException(status_code=400, detail="Invalid directory path")
     
     # Create directory if it doesn't exist
@@ -128,7 +157,7 @@ async def upload_files(
             file_path.write_bytes(content)
             
             # Store relative path for response
-            rel_path = str(file_path.relative_to(WORKSPACE_ROOT))
+            rel_path = str(file_path.relative_to(user_workspace))
             uploaded_files.append(rel_path)
             print(f"Successfully saved: {rel_path}")
             
@@ -160,9 +189,10 @@ async def upload_files(
 
 
 @router.get("/summary")
-async def get_files_summary():
+async def get_files_summary(current_user: AuthUser = Depends(get_current_user)):
     """Get a summary of files available for AI agent analysis."""
-    if not WORKSPACE_ROOT.exists():
+    user_workspace = get_user_workspace(current_user)
+    if not user_workspace.exists():
         return {"total_files": 0, "file_types": {}, "ai_accessible": []}
     
     files = []
@@ -175,9 +205,9 @@ async def get_files_summary():
         '.json', '.yaml', '.yml', '.xml', '.sql', '.pdf', '.csv'
     }
     
-    for file_path in WORKSPACE_ROOT.rglob("*"):
+    for file_path in user_workspace.rglob("*"):
         if file_path.is_file():
-            rel_path = str(file_path.relative_to(WORKSPACE_ROOT))
+            rel_path = str(file_path.relative_to(user_workspace))
             files.append(rel_path)
             
             ext = file_path.suffix.lower()
@@ -198,6 +228,7 @@ async def get_files_summary():
         "workspace_tools": [
             "codebase_explorer - analyze project structure and search code",
             "file_manager - read/write individual files", 
-            "read_pdf - extract text from PDF documents"
+            "calendar_tool - manage calendar events",
+            "search_google - search for information online"
         ]
     } 

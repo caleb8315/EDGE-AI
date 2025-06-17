@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ChatInterface from '@/components/dashboard/ChatInterface'
 import TaskList from '@/components/dashboard/TaskList'
-import ResourcesPanel from '@/components/dashboard/ResourcesPanel'
-import CompletedTasks from '@/components/dashboard/CompletedTasks'
+import TasksAndResources from '@/components/dashboard/TasksAndResources'
 import ProactiveSuggestions from '@/components/dashboard/ProactiveSuggestions'
 import CodebasePanel from '@/components/dashboard/CodebasePanel'
 import { User, RoleType } from '@/types'
@@ -204,8 +203,7 @@ export default function DashboardPage() {
           {/* Right Column: Tasks & Resources */}
           <div className="space-y-6">
             <TaskList user={user} />
-            <CompletedTasks userId={user.id} />
-            <ResourcesPanel />
+            <TasksAndResources userId={user.id} />
             <CodebasePanel userId={user.id} />
           </div>
         </div>

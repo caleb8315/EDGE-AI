@@ -38,6 +38,7 @@ class AuthResponse(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
     role: RoleEnum
+    auth_user_id: Optional[str] = None
 
 class UserCreate(UserBase):
     pass
@@ -73,6 +74,7 @@ class TaskBase(BaseModel):
     assigned_to_role: RoleEnum
     description: str
     status: TaskStatusEnum = TaskStatusEnum.PENDING
+    auth_user_id: Optional[str] = None
 
 class TaskCreate(TaskBase):
     pass
