@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ChatInterface from '@/components/dashboard/ChatInterface'
-import TaskList from '@/components/dashboard/TaskList'
 import TasksAndResources from '@/components/dashboard/TasksAndResources'
 import ProactiveSuggestions from '@/components/dashboard/ProactiveSuggestions'
 import CodebasePanel from '@/components/dashboard/CodebasePanel'
 import { User, RoleType } from '@/types'
 import { getRoleColor, getRoleDescription } from '@/lib/utils'
 import { LogOut, Settings, User as UserIcon, Brain, Target, Zap, Sparkles } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import TaskList from '@/components/dashboard/TaskList'
+import { supabase } from '@/lib/supabaseClient'
 
 const roleIcons = {
   CEO: Target,
@@ -43,7 +45,8 @@ export default function DashboardPage() {
     }
   }, [router])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     localStorage.removeItem('user')
     router.push('/')
   }
@@ -149,62 +152,38 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* Main Dashboard - 3 Column Layout */}
+        {/* Main Dashboard - 2 Column Layout */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column: AI Insights */}
-          <div className="space-y-6">
-            <ProactiveSuggestions user={user} />
-            
-            {/* Agent Selector */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Chat with AI Team</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Your intelligent AI co-founders are ready to help
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {aiRoles.map((role) => {
-                    const RoleIcon = roleIcons[role]
-                    const isSelected = selectedAgent === role
-                    
-                    return (
-                      <Button
-                        key={role}
-                        variant={isSelected ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedAgent(role)}
-                        className={`w-full justify-start gap-2 ${isSelected ? 'shadow-md' : ''}`}
-                      >
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                          role === 'CEO' ? 'bg-purple-500' : 
-                          role === 'CTO' ? 'bg-blue-500' : 'bg-green-500'
-                        }`}>
-                          <RoleIcon className="w-3 h-3 text-white" />
-                        </div>
-                        <span>AI {role}</span>
-                        <Badge variant="secondary" className="ml-auto text-xs">
-                          {role === 'CEO' ? 'Strategic' : role === 'CTO' ? 'Technical' : 'Growth'}
-                        </Badge>
-                      </Button>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Center Column: Chat Interface */}
-          <div>
-            <ChatInterface user={user} selectedAgent={selectedAgent} key={selectedAgent} />
-          </div>
-
-          {/* Right Column: Tasks & Resources */}
-          <div className="space-y-6">
+          {/* Left Column: Tasks, Resources, etc. */}
+          <div className="lg:col-span-1 space-y-6">
             <TaskList user={user} />
             <TasksAndResources userId={user.id} />
             <CodebasePanel userId={user.id} />
+            <ProactiveSuggestions user={user} />
+          </div>
+
+          {/* Right Column: Chat Interface with Tabs */}
+          <div className="lg:col-span-2">
+             <Tabs value={selectedAgent} onValueChange={(value: string) => setSelectedAgent(value as RoleType)} className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                {aiRoles.map((role) => {
+                  const RoleIcon = roleIcons[role]
+                  return (
+                    <TabsTrigger key={role} value={role}>
+                      <div className="flex items-center gap-2">
+                        <RoleIcon className="w-4 h-4" />
+                        <span>AI {role}</span>
+                      </div>
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+              {aiRoles.map((role) => (
+                <TabsContent key={role} value={role} className="mt-4">
+                  <ChatInterface user={user} selectedAgent={role} key={role} />
+                </TabsContent>
+              ))}
+            </Tabs>
           </div>
         </div>
 

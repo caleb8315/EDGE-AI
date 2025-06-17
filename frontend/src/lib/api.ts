@@ -158,8 +158,8 @@ export const filesApi = {
     return response.data
   },
 
-  getCompletedTasks: async (userId: string): Promise<string[]> => {
-    const response = await api.get(`/api/files/completed-tasks/${userId}`)
+  getCompletedTasks: async (): Promise<string[]> => {
+    const response = await api.get(`/api/files/completed-tasks`)
     return response.data
   },
 }

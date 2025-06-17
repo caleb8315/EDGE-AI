@@ -6,15 +6,11 @@ Simple file read/write operations within a restricted **workspace**
 directory to prevent escaping to the host filesystem.
 """
 
-import os
 from pathlib import Path
 from typing import Literal, Optional
 
 from .base import BaseTool
-
-
-_WORKSPACE_ROOT = Path(os.getenv("EDGE_WORKSPACE", "/tmp/edge_workspace")).resolve()
-_WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
+from app.utils.filesystem import get_user_workspace, is_safe_path
 
 
 class FileManagerTool(BaseTool):
@@ -22,7 +18,7 @@ class FileManagerTool(BaseTool):
     description: str = (
         "Read or write small text files in the workspace. Parameters:\n"
         "- mode (str): 'read' or 'write'.\n"
-        "- path (str): Relative path inside workspace.\n"
+        "- path (str): Relative path inside the user's workspace.\n"
         "- content (str, required for write): Text content.\n"
         "Returns: File content (read) or confirmation (write)."
     )
@@ -33,22 +29,28 @@ class FileManagerTool(BaseTool):
         path: str,
         *,
         content: Optional[str] = None,
+        auth_user_id: Optional[str] = None,
     ) -> str:  # type: ignore[override]
-        abs_path = (_WORKSPACE_ROOT / path).resolve()
-        if abs_path.is_relative_to(_WORKSPACE_ROOT):  # py311+
-            pass
-        else:
-            raise ValueError("Access outside workspace is not allowed.")
+        if not auth_user_id:
+            raise ValueError("auth_user_id must be provided to use the file manager.")
+
+        user_workspace = get_user_workspace(auth_user_id)
+
+        abs_path = (user_workspace / path).resolve()
+
+        # Security check
+        if not is_safe_path(abs_path):
+            raise ValueError("Access outside user's workspace is not allowed.")
 
         if mode == "read":
             if not abs_path.exists():
-                raise FileNotFoundError(str(abs_path))
+                raise FileNotFoundError(f"File not found in your workspace: {path}")
             return abs_path.read_text()
         elif mode == "write":
             if content is None:
                 raise ValueError("'content' must be provided when mode='write'")
             abs_path.parent.mkdir(parents=True, exist_ok=True)
             abs_path.write_text(content)
-            return f"File written to {abs_path}"
+            return f"File written to {path}"
         else:
             raise ValueError("mode must be 'read' or 'write'") 

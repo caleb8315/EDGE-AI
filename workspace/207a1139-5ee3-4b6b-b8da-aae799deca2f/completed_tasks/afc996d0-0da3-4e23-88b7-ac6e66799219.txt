@@ -1,0 +1,8 @@
+Task: 
+Create a landing page for our startup's website that showcases our product and includes a sign-up form for early access.
+
+Deliverable:
+- Landing page design mockup
+- Sign-up form integrated into the landing page
+- Call-to-action button for users to sign up
+- Mobile-responsive layout for the landing page

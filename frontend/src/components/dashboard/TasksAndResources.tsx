@@ -4,8 +4,9 @@ import { Task } from '@/types'
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Pencil, Trash2, Download, FileText } from 'lucide-react'
+import { Pencil, Trash2, Download, FileText, Eye } from 'lucide-react'
 import EditTaskModal from './EditTaskModal'
+import FileViewerModal from './FileViewerModal'
 
 interface TasksAndResourcesProps {
   userId: string
@@ -16,6 +17,7 @@ export default function TasksAndResources({ userId }: TasksAndResourcesProps) {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [allFiles, setAllFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -51,6 +53,25 @@ export default function TasksAndResources({ userId }: TasksAndResourcesProps) {
 
   const handleTaskUpdated = (updated: Task) => {
     setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)))
+  }
+
+  const handleViewFile = async (filePath: string) => {
+    try {
+      // For now, we only support viewing text-based files.
+      const textExtensions = ['.py', '.js', '.ts', '.tsx', '.jsx', '.html', '.css', '.md', '.txt', '.json', '.yaml', '.yml', '.sql']
+      const extension = filePath.substring(filePath.lastIndexOf('.'))
+      
+      if (!textExtensions.includes(extension)) {
+        alert("This file type cannot be viewed directly. Please download it instead.")
+        return
+      }
+
+      const content = await filesApi.read(filePath)
+      setSelectedFile({ path: filePath, content })
+    } catch (e) {
+      console.error('Failed to read file:', e)
+      alert('Failed to read file for viewing.')
+    }
   }
 
   const handleDownloadFile = async (filePath: string) => {
@@ -126,17 +147,26 @@ export default function TasksAndResources({ userId }: TasksAndResourcesProps) {
                         <p className="text-xs font-medium text-gray-600 mb-1">Generated Files:</p>
                         <div className="flex flex-wrap gap-2">
                           {task.resources.map(resource => (
-                            <Button
-                              key={resource}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs"
-                              onClick={() => handleDownloadFile(resource)}
-                            >
-                              <FileText className="w-3 h-3 mr-1" />
-                              {resource.split('/').pop()}
-                              <Download className="w-3 h-3 ml-1" />
-                            </Button>
+                            <div key={resource} className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs pr-2"
+                                onClick={() => handleViewFile(resource)}
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                {resource.split('/').pop()}
+                                <Eye className="w-3 h-3 ml-2" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => handleDownloadFile(resource)}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -157,16 +187,25 @@ export default function TasksAndResources({ userId }: TasksAndResourcesProps) {
               <h3 className="font-semibold text-lg mb-3">Other Workspace Files</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {otherFiles.map(file => (
-                  <Button
-                    key={file}
-                    size="sm"
-                    variant="outline"
-                    className="h-10 justify-between"
-                    onClick={() => handleDownloadFile(file)}
-                  >
-                    <span className="truncate text-left">{file.split('/').pop()}</span>
-                    <Download className="w-4 h-4 ml-2 flex-shrink-0" />
-                  </Button>
+                  <div key={file} className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-10 justify-between flex-1 truncate"
+                      onClick={() => handleViewFile(file)}
+                    >
+                      <span className="truncate text-left">{file.split('/').pop()}</span>
+                      <Eye className="w-4 h-4 ml-2 flex-shrink-0" />
+                    </Button>
+                     <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-10 w-10"
+                        onClick={() => handleDownloadFile(file)}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -180,6 +219,15 @@ export default function TasksAndResources({ userId }: TasksAndResourcesProps) {
           task={editTask} 
           onClose={() => setEditTask(null)} 
           onTaskUpdated={handleTaskUpdated} 
+        />
+      )}
+
+      {selectedFile && (
+        <FileViewerModal
+          open={!!selectedFile}
+          onClose={() => setSelectedFile(null)}
+          filePath={selectedFile.path}
+          fileContent={selectedFile.content}
         />
       )}
     </>

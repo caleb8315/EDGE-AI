@@ -7,15 +7,12 @@ the codebase structure, search for patterns, and get contextual information
 about uploaded files.
 """
 
-import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
 import json
+from typing import List, Dict, Any, Optional, Literal
 
 from .base import BaseTool
-
-_WORKSPACE_ROOT = Path(os.getenv("EDGE_WORKSPACE", "/tmp/edge_workspace")).resolve()
-_WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
+from app.utils.filesystem import get_user_workspace, is_safe_path
 
 
 class CodebaseExplorerTool(BaseTool):
@@ -35,38 +32,42 @@ class CodebaseExplorerTool(BaseTool):
         path: Optional[str] = None,
         pattern: Optional[str] = None,
         file_types: Optional[List[str]] = None,
+        auth_user_id: Optional[str] = None,
         **kwargs
     ) -> str:  # type: ignore[override]
-        
+        if not auth_user_id:
+            raise ValueError("auth_user_id must be provided to use the codebase explorer.")
+
+        user_workspace = get_user_workspace(auth_user_id)
+
         if action == "list":
-            return await self._list_files(path, file_types)
+            return await self._list_files(user_workspace, path, file_types)
         elif action == "analyze":
-            return await self._analyze_structure(path)
+            return await self._analyze_structure(user_workspace, path)
         elif action == "search":
-            return await self._search_content(pattern, path, file_types)
+            return await self._search_content(user_workspace, pattern, path, file_types)
         elif action == "summary":
-            return await self._get_summary(path)
+            return await self._get_summary(user_workspace, path)
         else:
             raise ValueError(f"Unknown action: {action}. Use 'list', 'analyze', 'search', or 'summary'.")
 
-    async def _list_files(self, path: Optional[str] = None, file_types: Optional[List[str]] = None) -> str:
+    async def _list_files(self, user_workspace: Path, path: Optional[str] = None, file_types: Optional[List[str]] = None) -> str:
         """List files in the workspace with optional filtering."""
-        base_path = _WORKSPACE_ROOT / (path or "")
-        base_path = base_path.resolve()
+        base_path = (user_workspace / (path or "")).resolve()
         
-        if not base_path.is_relative_to(_WORKSPACE_ROOT):
-            raise ValueError("Access outside workspace is not allowed.")
+        if not base_path.is_relative_to(user_workspace):
+            raise ValueError("Access outside user's workspace is not allowed.")
         
         if not base_path.exists():
             return f"Path '{path}' does not exist in the workspace."
         
         files = []
         if base_path.is_file():
-            files = [str(base_path.relative_to(_WORKSPACE_ROOT))]
+            files = [str(base_path.relative_to(user_workspace))]
         else:
             for file_path in base_path.rglob("*"):
                 if file_path.is_file():
-                    rel_path = str(file_path.relative_to(_WORKSPACE_ROOT))
+                    rel_path = str(file_path.relative_to(user_workspace))
                     if file_types:
                         if any(rel_path.endswith(ext) for ext in file_types):
                             files.append(rel_path)
@@ -92,13 +93,12 @@ class CodebaseExplorerTool(BaseTool):
         
         return result
 
-    async def _analyze_structure(self, path: Optional[str] = None) -> str:
+    async def _analyze_structure(self, user_workspace: Path, path: Optional[str] = None) -> str:
         """Analyze the structure and provide insights about the codebase."""
-        base_path = _WORKSPACE_ROOT / (path or "")
-        base_path = base_path.resolve()
+        base_path = (user_workspace / (path or "")).resolve()
         
-        if not base_path.is_relative_to(_WORKSPACE_ROOT):
-            raise ValueError("Access outside workspace is not allowed.")
+        if not base_path.is_relative_to(user_workspace):
+            raise ValueError("Access outside user's workspace is not allowed.")
         
         if not base_path.exists():
             return f"Path '{path}' does not exist in the workspace."
@@ -115,10 +115,10 @@ class CodebaseExplorerTool(BaseTool):
         for file_path in base_path.rglob("*"):
             if file_path.is_file():
                 stats['total_files'] += 1
-                rel_path = str(file_path.relative_to(_WORKSPACE_ROOT))
+                rel_path = str(file_path.relative_to(user_workspace))
                 
                 # Directory tracking
-                stats['directories'].add(str(file_path.parent.relative_to(_WORKSPACE_ROOT)))
+                stats['directories'].add(str(file_path.parent.relative_to(user_workspace)))
                 
                 # File extension tracking
                 ext = file_path.suffix.lower()
@@ -166,23 +166,22 @@ class CodebaseExplorerTool(BaseTool):
         
         return result
 
-    async def _search_content(self, pattern: Optional[str], path: Optional[str] = None, file_types: Optional[List[str]] = None) -> str:
+    async def _search_content(self, user_workspace: Path, pattern: Optional[str], path: Optional[str] = None, file_types: Optional[List[str]] = None) -> str:
         """Search for patterns in file content."""
         if not pattern:
             return "Please provide a search pattern."
         
-        base_path = _WORKSPACE_ROOT / (path or "")
-        base_path = base_path.resolve()
+        base_path = (user_workspace / (path or "")).resolve()
         
-        if not base_path.is_relative_to(_WORKSPACE_ROOT):
-            raise ValueError("Access outside workspace is not allowed.")
+        if not base_path.is_relative_to(user_workspace):
+            raise ValueError("Access outside user's workspace is not allowed.")
         
         matches = []
         text_extensions = {'.py', '.js', '.ts', '.tsx', '.jsx', '.html', '.css', '.md', '.txt', '.json', '.yaml', '.yml', '.xml', '.sql'}
         
         for file_path in base_path.rglob("*"):
             if file_path.is_file():
-                rel_path = str(file_path.relative_to(_WORKSPACE_ROOT))
+                rel_path = str(file_path.relative_to(user_workspace))
                 
                 # Filter by file types if specified
                 if file_types and not any(rel_path.endswith(ext) for ext in file_types):
@@ -225,17 +224,19 @@ class CodebaseExplorerTool(BaseTool):
         
         return result
 
-    async def _get_summary(self, path: Optional[str] = None) -> str:
+    async def _get_summary(self, user_workspace: Path, path: Optional[str] = None) -> str:
         """Get a high-level summary of the workspace or specific path."""
-        base_path = _WORKSPACE_ROOT / (path or "")
-        base_path = base_path.resolve()
-        
-        if not base_path.is_relative_to(_WORKSPACE_ROOT):
-            raise ValueError("Access outside workspace is not allowed.")
-        
+        base_path = (user_workspace / (path or "")).resolve()
+
+        if not base_path.is_relative_to(user_workspace):
+            raise ValueError("Access outside user's workspace is not allowed.")
+
+        if not base_path.exists():
+            return f"Path '{path}' does not exist in the workspace."
+
         # Get quick analysis
-        analysis = await self._analyze_structure(path)
-        
+        analysis = await self._analyze_structure(user_workspace, path)
+
         # Add project type detection
         project_indicators = {
             'Python': ['.py', 'requirements.txt', 'setup.py', 'pyproject.toml'],
@@ -246,35 +247,28 @@ class CodebaseExplorerTool(BaseTool):
             'FastAPI': ['main.py', 'app', 'requirements.txt'],
             'Documentation': ['.md', '.rst', 'docs', 'README'],
         }
-        
+
         detected_types = []
-        for project_type, indicators in project_indicators.items():
-            score = 0
-            for indicator in indicators:
-                for file_path in base_path.rglob("*"):
-                    if indicator in str(file_path).lower():
-                        score += 1
-                        break
-            if score >= 2:  # Need at least 2 indicators
-                detected_types.append(project_type)
-        
-        summary = f"📋 Project Summary{f' for {path}' if path else ''}:\n\n"
-        
+        all_files = [str(p.relative_to(user_workspace)) for p in base_path.rglob('*') if p.is_file()]
+
+        for p_type, indicators in project_indicators.items():
+            count = sum(1 for indicator in indicators if any(indicator in file for file in all_files))
+            if count > 0:
+                detected_types.append({'type': p_type, 'score': count})
+
+        # Sort by score and get top types
+        detected_types = sorted(detected_types, key=lambda x: x['score'], reverse=True)
+
+        summary = analysis
         if detected_types:
-            summary += f"🎯 Detected Project Types: {', '.join(detected_types)}\n\n"
-        
-        summary += analysis
-        
-        # Add recommendations based on file types
-        summary += "\n💡 AI Assistant Capabilities:\n"
-        summary += "  • CTO can help with code architecture, debugging, and technical decisions\n"
-        summary += "  • CMO can analyze documentation, marketing materials, and user-facing content\n"
-        summary += "  • CEO can review business documents, plans, and overall strategy\n"
-        
+            summary += "\n\n🔍 Detected Project Types:\n"
+            for p_type in detected_types[:3]:  # Show top 3
+                summary += f"  • {p_type['type']} (relevance: {p_type['score']})\n"
+
         return summary
 
     def _get_file_icon(self, ext: str) -> str:
-        """Get an emoji icon for file type."""
+        """Return a Unicode icon for a given file extension."""
         icons = {
             '.py': '🐍', '.js': '📜', '.ts': '📘', '.tsx': '⚛️', '.jsx': '⚛️',
             '.html': '🌐', '.css': '🎨', '.md': '📝', '.txt': '📄',

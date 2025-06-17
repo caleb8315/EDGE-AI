@@ -6,22 +6,14 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Form, 
 from fastapi.responses import FileResponse, PlainTextResponse
 from typing import List
 from pathlib import Path
-import os
 import shutil
 
 from app.config import ENVIRONMENT  # just to ensure config import works
 from app.services.supabase_service import supabase_service
 from app.auth import get_current_user, AuthUser
-
-WORKSPACE_ROOT = Path(os.getenv("EDGE_WORKSPACE", "/tmp/edge_workspace")).resolve()
+from app.utils.filesystem import get_user_workspace, is_safe_path
 
 router = APIRouter(prefix="/files", tags=["files"])
-
-def get_user_workspace(auth_user: AuthUser) -> Path:
-    """Get the workspace directory for a specific authenticated user."""
-    user_workspace = WORKSPACE_ROOT / auth_user.auth_id
-    user_workspace.mkdir(parents=True, exist_ok=True)
-    return user_workspace
 
 @router.get("/list", response_model=List[str])
 async def list_files(subdir: str | None = None, current_user: AuthUser = Depends(get_current_user)):
@@ -31,7 +23,7 @@ async def list_files(subdir: str | None = None, current_user: AuthUser = Depends
     """
     user_workspace = get_user_workspace(current_user)
     base = (user_workspace / subdir).resolve() if subdir else user_workspace
-    if not base.is_relative_to(user_workspace):
+    if not is_safe_path(base):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not base.exists():
         raise HTTPException(status_code=404, detail="Path not found")
@@ -43,20 +35,18 @@ async def list_files(subdir: str | None = None, current_user: AuthUser = Depends
     return files
 
 
-@router.get("/completed-tasks/{user_id}", response_model=List[str])
-async def list_user_completed_tasks(user_id: str, current_user: AuthUser = Depends(get_current_user)):
+@router.get("/completed-tasks", response_model=List[str])
+async def list_user_completed_tasks(current_user: AuthUser = Depends(get_current_user)):
     """Return completed task files for a specific user."""
     user_workspace = get_user_workspace(current_user)
-    user_tasks_dir = user_workspace / "completed_tasks" / user_id
-    if not user_tasks_dir.exists():
-        return []
-    
-    if not user_tasks_dir.is_relative_to(user_workspace):
-        raise HTTPException(status_code=400, detail="Invalid path")
-    
+    # Completed tasks are now just files in the user's workspace, often in a sub-folder
+    # The frontend can filter by path if needed, e.g., files in 'completed_tasks/'
+    # This keeps the API simpler and more secure.
     files = []
-    for p in user_tasks_dir.rglob("*"):
+    for p in user_workspace.rglob("*"):
         if p.is_file():
+            # You could add filtering logic here if needed, e.g.,
+            # if 'completed_tasks' in str(p.relative_to(user_workspace)):
             files.append(str(p.relative_to(user_workspace)))
     return files
 
@@ -70,7 +60,7 @@ async def get_file(path: str, current_user: AuthUser = Depends(get_current_user)
     """
     user_workspace = get_user_workspace(current_user)
     abs_path = (user_workspace / path).resolve()
-    if not abs_path.is_relative_to(user_workspace):
+    if not is_safe_path(abs_path):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not abs_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -89,7 +79,7 @@ async def make_directory(path: str, current_user: AuthUser = Depends(get_current
     """Create a directory under the workspace (including parents)."""
     user_workspace = get_user_workspace(current_user)
     abs_path = (user_workspace / path).resolve()
-    if not abs_path.is_relative_to(user_workspace):
+    if not is_safe_path(abs_path):
         raise HTTPException(status_code=400, detail="Invalid path")
     try:
         abs_path.mkdir(parents=True, exist_ok=True)
@@ -114,7 +104,7 @@ async def upload_files(
     target_dir = user_workspace / directory if directory else user_workspace
     target_dir = target_dir.resolve()
     
-    if not target_dir.is_relative_to(user_workspace):
+    if not is_safe_path(target_dir):
         raise HTTPException(status_code=400, detail="Invalid directory path")
     
     # Create directory if it doesn't exist

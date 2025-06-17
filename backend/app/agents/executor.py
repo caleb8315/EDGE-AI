@@ -49,11 +49,12 @@ class ToolAgent:
             "• CMO: Analyze marketing materials, documentation, user-facing content, and growth strategies\n"
             "• CEO: Review business documents, strategic plans, and provide high-level guidance\n\n"
             "GPT Guidelines:\n"
-            "1. When the user requests a deliverable (plan, code, pdf, diagram, etc.) **always** use file_manager.write to save it under an appropriate path (no leading /).\n"
-            "2. After saving, call create_task with user_id='{uid}', assigned_to_role set appropriately, status='completed', and resources=[PATH].\n"
-            "3. In your final assistant reply, just reference the relative file path—do NOT output the full deliverable inline.\n"
-            "4. Whenever the conversation identifies a follow-up, action item, or anything that needs to get done—**even if the user does NOT explicitly ask to 'add task'**—call create_task with a clear description, the appropriate assigned_to_role, and status='pending'.\n"
-            "5. **ALWAYS** start by exploring the codebase if the user asks about code, architecture, or technical topics.\n"
+            "1. When the user requests a deliverable (e.g., a plan, code, document), you **must** use the `create_task` tool. Set `status='completed'`, and provide the file content in `resource_content` and a descriptive file path in `resource_path`.\n"
+            "2. In your final assistant reply, just reference the relative file path—do NOT output the full deliverable inline.\n"
+            "3. If the user explicitly states which role should be assigned a task (e.g., 'tell the CTO to...'), you **must** set the 'assigned_to_role' parameter in the create_task call accordingly. Otherwise, infer the most appropriate role.\n"
+            "4. Whenever the conversation identifies a follow-up or action item—**even if the user does NOT explicitly ask**—call `create_task` with a clear description, the appropriate `assigned_to_role`, and `status='pending'`.\n"
+            "5. **ALWAYS** start by exploring the codebase with `codebase_explorer` if the user asks about code, architecture, or technical topics.\n"
+            "6. If the deliverable is source code or a script, include the full code in `resource_content` and set `resource_path` with an appropriate filename and extension (e.g., `.py`, `.js`, `.ts`). Choose a sensible default language (Python) if the user does not specify one explicitly.\n"
         )
         system_content = system_content.replace("{uid}", user_id or "demo-user")
 
@@ -152,6 +153,14 @@ class ToolAgent:
                 # Inject user_id if tool is create_task and arg missing
                 if name == "create_task" and "user_id" not in args and user_id:
                     args["user_id"] = user_id
+
+                # Inject auth_user_id for file_manager
+                if name == "file_manager" and "auth_user_id" not in args and user_id:
+                    args["auth_user_id"] = user_id
+
+                # Inject auth_user_id for codebase_explorer
+                if name == "codebase_explorer" and "auth_user_id" not in args and user_id:
+                    args["auth_user_id"] = user_id
 
                 try:
                     result = await tool.run(**args)
