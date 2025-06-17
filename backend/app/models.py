@@ -14,7 +14,27 @@ class TaskStatusEnum(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
 
-# User Models
+# Authentication Models
+class AuthSignUp(BaseModel):
+    email: EmailStr
+    password: str
+    role: RoleEnum
+
+class AuthSignIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class AuthUser(BaseModel):
+    id: str
+    email: str
+    created_at: str
+    user_metadata: Dict[str, Any] = {}
+
+class AuthResponse(BaseModel):
+    user: AuthUser
+    session: Dict[str, Any]
+
+# User Models (Legacy - for backward compatibility)
 class UserBase(BaseModel):
     email: EmailStr
     role: RoleEnum
