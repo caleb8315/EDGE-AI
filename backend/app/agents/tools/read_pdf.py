@@ -52,8 +52,8 @@ class ReadPDFTool(BaseTool):
                     path = workspace_path
                 else:
                     path = Path(source)
-        else:
-            path = Path(source)
+            else:
+                path = Path(source)
             
             if not path.exists():
                 # Try to give helpful error if it might be in workspace
@@ -66,7 +66,7 @@ class ReadPDFTool(BaseTool):
 
         text_parts = []
         try:
-        with pdfplumber.open(str(path)) as pdf:
+            with pdfplumber.open(str(path)) as pdf:
                 total_pages = len(pdf.pages)
                 pages_to_read = min(total_pages, max_pages or total_pages)
                 
